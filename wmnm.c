@@ -218,12 +218,17 @@ void button_press(int button, int state, int x, int y)
 	free(data);
 }
 
+void main_loop(void)
+{
+	g_main_context_iteration(NULL, FALSE);
+}
+
 int main (int argc, char *argv[])
 {
 	XGCValues values;
 	DACallbacks eventCallbacks = {NULL, button_press,
 				      NULL, NULL, NULL, NULL,
-				      NULL};
+				      main_loop};
 
 	NMClient *client;
 	NMDevice *device;
