@@ -128,7 +128,7 @@ void update_window_wifi(NMDevice *device)
 		draw_signal(strength);
 
 		speed = nm_device_wifi_get_bitrate (NM_DEVICE_WIFI (device));
-		speed /= 1000;
+		speed = (speed + 500)/1000;
 		snprintf(speed_str, sizeof(speed_str), "%d Mbps", speed);
 		draw_string(speed_str, 6, 42);
 
