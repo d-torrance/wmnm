@@ -114,6 +114,7 @@ void update_window_wifi(NMDevice *device)
 	char *active_ssid_str = NULL;
  	char speed_str[50];
 
+	clear_rectangle(5, 20, 54, 39);
 	if ((active_ap =
 	     nm_device_wifi_get_active_access_point(NM_DEVICE_WIFI(device)))) {
 		active_ssid = nm_access_point_get_ssid(active_ap);
@@ -133,6 +134,8 @@ void update_window_wifi(NMDevice *device)
 		draw_string(speed_str, 6, 42);
 
 		draw_string(active_ssid_str, 6, 56);
+
+		DASetPixmap(pixmap);
 	}
 
 }
@@ -260,6 +263,16 @@ int main (int argc, char *argv[])
 	}
 
 	devices = nm_client_get_devices(client);
+
+	for (i = 0; i < devices->len; i++) {
+		device = g_ptr_array_index(devices, i);
+		if (NM_IS_DEVICE_WIFI(device))
+			g_signal_connect(device,
+					 "notify::" NM_DEVICE_WIFI_BITRATE,
+					 G_CALLBACK(update_window_wifi),
+					 device);
+	}
+
 	device = g_ptr_array_index(devices, 0);
 	update_window(device);
 
