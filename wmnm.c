@@ -48,7 +48,7 @@ typedef struct Device {
 void clear_rectangle(Pixmap pixmap, int x, int y, unsigned int width,
 		     unsigned int height);
 void switch_devices(int x, int y, DARect rect, void *data);
-
+static void update_window_generic(Device *d);
 
 /* globals */
 DAActionRect action_rects[] = {
@@ -145,6 +145,27 @@ void update_window_wifi(Device *d)
 	}
 }
 
+void update_window_generic(Device *d)
+{
+	guint32 speed;
+	char speed_str[50];
+	const char *description;
+	const char *address;
+	char *address1, *address2;
+
+	description =  nm_device_get_type_description(d->device);
+	if (description)
+		draw_string(d->pixmap, description, 6, 30);
+
+	address = nm_device_get_hw_address(d->device);
+	if (address) {
+		address1 = strndup(address, 9);
+		address2 = strndup(address + 9, 8);
+		draw_string(d->pixmap, address1, 6, 42);
+		draw_string(d->pixmap, address2, 6, 54);
+	}
+}
+
 void initialize_device_pixmap(Device *d)
 {
 	const char *iface;
@@ -205,7 +226,8 @@ void initialize_device_pixmap(Device *d)
 
 	if (NM_IS_DEVICE_WIFI(d->device))
 		update_window_wifi(d);
-
+	else
+		update_window_generic(d);
 }
 
 void switch_devices(int x, int y, DARect rect, void *data)
