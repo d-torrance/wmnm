@@ -194,9 +194,10 @@ void initialize_device_pixmap(Device *d)
 	draw_string(d->pixmap, iface, 6, 13);
 
 	/* draw led telling us whether device is activated */
-	if (nm_device_get_state(d->device) == NM_DEVICE_STATE_ACTIVATED)
+	if (nm_device_get_state(d->device) == NM_DEVICE_STATE_ACTIVATED) {
+		current_device = d;
 		led = led_on;
-	else
+	} else
 		led = led_off;
 	XCopyArea(DADisplay, led, d->pixmap, DAGC, 0, 0, 4, 4, 53, 8);
 
