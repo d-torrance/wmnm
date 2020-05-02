@@ -38,31 +38,38 @@
 #define DEFAULT_FGCOLOR "light sea green"
 #define DEFAULT_BGCOLOR "#181818"
 
+typedef struct {
+	int is_current;
+	NMDevice *device;
+	Pixmap pixmap;
+	struct Device *previous;
+	struct Device *next;
+} Device;
+
+void clear_rectangle(Pixmap pixmap, int x, int y, unsigned int width,
+		     unsigned int height);
 void switch_devices(int x, int y, DARect rect, void *data);
 
 
 /* globals */
-Pixmap pixmap;
-const GPtrArray *devices;
 DAActionRect action_rects[] = {
 	{{5, 5, 54, 11}, switch_devices}
 };
 
-void clear_rectangle(int x, int y, unsigned int width, unsigned int height)
+void clear_rectangle(Pixmap pixmap, int x, int y, unsigned int width,
+		     unsigned int height)
 {
 	XGCValues values;
-	static GC gc = 0;
+	GC gc;
 
-	if (!gc) {
-		values.foreground = DAGetColor(DEFAULT_BGCOLOR);
-		gc = XCreateGC(DADisplay, pixmap, GCForeground, &values);
-	}
+	values.foreground = DAGetColor(DEFAULT_BGCOLOR);
+	gc = XCreateGC(DADisplay, pixmap, GCForeground, &values);
 	XFillRectangle(DADisplay, pixmap, gc, x, y, width, height);
 }
 
-void draw_signal(const guint8 strength)
+void draw_signal(Pixmap pixmap, const guint8 strength)
 {
-	int i, loop, offset;
+	int loop;
 	GC gc;
 	static GC light_gc = 0, dark_gc = 0;
 	XGCValues values;
@@ -79,68 +86,66 @@ void draw_signal(const guint8 strength)
 	gc = light_gc;
 	loop = floor(0.26 * strength + 0.5); /* 100 strength = all 26 bars */
 
-	for (i = 0, offset = 6; i < 26; i++, offset += 2) {
-		if (i == loop)
+	for (int j = 0, offset = 6; j < 26; j++, offset += 2) {
+		if (j == loop)
 			gc = dark_gc;
 		XDrawLine(DADisplay, pixmap, gc, offset, 21, offset, 29);
 	}
 }
 
-void draw_string(const char *str, int x, int y)
+void draw_string(Pixmap pixmap, const char *str, int x, int y)
 {
 	Colormap cmap;
-	static XftColor color = {0, 0};
-	static XftDraw *draw = NULL;
-	static XftFont *font = NULL;
+	XftColor color = {0, 0};
+	XftDraw *draw;
+	XftFont *font;
 
-	if (!font) {
-		cmap = DefaultColormap(DADisplay, DefaultScreen(DADisplay));
-		draw = XftDrawCreate(DADisplay, pixmap, DAVisual, cmap);
-		XftColorAllocName(DADisplay, DAVisual, cmap, DEFAULT_FGCOLOR,
-				  &color);
-		font = XftFontOpenName(DADisplay, DefaultScreen(DADisplay),
-				       "mono:pixelsize=9");
-	}
+	cmap = DefaultColormap(DADisplay, DefaultScreen(DADisplay));
+	draw = XftDrawCreate(DADisplay, pixmap, DAVisual, cmap);
+	XftColorAllocName(DADisplay, DAVisual, cmap, DEFAULT_FGCOLOR,
+			  &color);
+	font = XftFontOpenName(DADisplay, DefaultScreen(DADisplay),
+			       "mono:pixelsize=9");
 
 	XftDrawString8(draw, &color, font, x, y, str, strlen(str));
 }
 
-void update_window_wifi(NMDevice *device)
+void update_window_wifi(Device *d)
 {
 	NMAccessPoint *active_ap = NULL;
 	guint8 strength;
 	guint32 speed;
 	GBytes *active_ssid;
 	char *active_ssid_str = NULL;
- 	char speed_str[50];
+	char speed_str[50];
 
-	clear_rectangle(5, 20, 54, 39);
+
+	clear_rectangle(d->pixmap, 5, 20, 54, 39);
+
 	if ((active_ap =
-	     nm_device_wifi_get_active_access_point(NM_DEVICE_WIFI(device)))) {
+	     nm_device_wifi_get_active_access_point(
+		     NM_DEVICE_WIFI(d->device)))) {
 		active_ssid = nm_access_point_get_ssid(active_ap);
 		if (active_ssid)
 			active_ssid_str = nm_utils_ssid_to_utf8(
-				g_bytes_get_data (active_ssid, NULL),
-				g_bytes_get_size (active_ssid));
+				g_bytes_get_data(active_ssid, NULL),
+				g_bytes_get_size(active_ssid));
 		else
 			active_ssid_str = g_strdup ("--");
+		draw_string(d->pixmap, active_ssid_str, 6, 56);
 
 		strength = nm_access_point_get_strength(active_ap);
-		draw_signal(strength);
+		draw_signal(d->pixmap, strength);
 
-		speed = nm_device_wifi_get_bitrate (NM_DEVICE_WIFI (device));
+		speed = nm_device_wifi_get_bitrate(
+			NM_DEVICE_WIFI(d->device));
 		speed = (speed + 500)/1000;
 		snprintf(speed_str, sizeof(speed_str), "%d Mbps", speed);
-		draw_string(speed_str, 6, 42);
-
-		draw_string(active_ssid_str, 6, 56);
-
-		DASetPixmap(pixmap);
+		draw_string(d->pixmap, speed_str, 6, 42);
 	}
-
 }
 
-void update_window(NMDevice *device)
+void initialize_device_pixmap(Device *d)
 {
 	const char *iface;
 	XGCValues values;
@@ -149,6 +154,9 @@ void update_window(NMDevice *device)
 	Pixmap led;
 	short unsigned int w, h;
 
+	/* todo: we want to update these leds if the device is activated
+	   or deactivated, so move this to another function and add a
+	   g_signal_connect */
 	static char * led_on_xpm[] = {
 		"4 4 4 1",
 		" 	c None",
@@ -177,37 +185,39 @@ void update_window(NMDevice *device)
 	if (!led_off)
 		DAMakePixmapFromData(led_off_xpm, &led_off, NULL, &w, &h);
 
+
+	DAMakePixmapFromData(wmnm_master_xpm, &d->pixmap, NULL, &w, &h);
+
 	/* print device interface name */
-	iface = nm_device_get_iface(device);
-	clear_rectangle(5, 5, 54, 11);
-	draw_string(iface, 6, 13);
+	iface = nm_device_get_iface(d->device);
+	clear_rectangle(d->pixmap, 5, 5, 54, 11);
+	draw_string(d->pixmap, iface, 6, 13);
 
 	/* draw led telling us whether device is activated */
-	if (nm_device_get_state (device) == NM_DEVICE_STATE_ACTIVATED)
+	if (nm_device_get_state(d->device) == NM_DEVICE_STATE_ACTIVATED)
 		led = led_on;
 	else
 		led = led_off;
-	XCopyArea(DADisplay, led, pixmap, DAGC, 0, 0, 4, 4, 53, 8);
+	XCopyArea(DADisplay, led, d->pixmap, DAGC, 0, 0, 4, 4, 53, 8);
 
-	clear_rectangle(5, 20, 54, 39);
+	clear_rectangle(d->pixmap, 5, 20, 54, 39);
 
-	if (NM_IS_DEVICE_WIFI(device))
-		update_window_wifi(device);
+	if (NM_IS_DEVICE_WIFI(d->device))
+		update_window_wifi(d);
 
-	DASetPixmap(pixmap);
+	if (d->is_current)
+		DASetPixmap(d->pixmap);
 }
 
 void switch_devices(int x, int y, DARect rect, void *data)
 {
-	static int current_device = 0;
-	NMDevice *device;
-
-	current_device++;
-	if (current_device >= devices->len)
-		current_device = 0;
-
-	device = g_ptr_array_index(devices, current_device);
-	update_window(device);
+	/* devices = (Devices *)data;
+	 * 
+	 * devices->current_device++;
+	 * if (devices->current_device >= devices->len)
+	 * 	devices->current_device = 0;
+	 * 
+	 * DASetPixmap(devices->devices[devices->current_device]->pixmap); */
 }
 
 void button_press(int button, int state, int x, int y)
@@ -216,7 +226,7 @@ void button_press(int button, int state, int x, int y)
 
 	*data = button;
 
-	DAProcessActionRects(x, y, action_rects, 1, (void *)data);
+	/* DAProcessActionRects(x, y, action_rects, 1, (void *)data); */
 
 	free(data);
 }
@@ -234,11 +244,11 @@ int main (int argc, char *argv[])
 				      main_loop};
 
 	NMClient *client;
-	NMDevice *device;
 	GError *error = NULL;
 	int i;
 	short unsigned int w, h;
 	Pixmap mask;
+	const GPtrArray *devices;
 
 	DAParseArguments(argc, argv, NULL, 0,
 			 "NetworkManager frontend as a Window Maker dockapp",
@@ -247,13 +257,6 @@ int main (int argc, char *argv[])
 		     argc, argv);
 	DASetCallbacks(&eventCallbacks);
 
-	/* replace with DAMakeShapeFromData when next version of libdockapp
-	   released */
-	mask = XCreateBitmapFromData(DADisplay, DAWindow, wmnm_mask_bits,
-				     wmnm_mask_width, wmnm_mask_height);
-	DAMakePixmapFromData(wmnm_master_xpm, &pixmap, NULL, &w, &h);
-	DASetPixmap(pixmap);
-	DASetShape(mask);
 
 	client = nm_client_new(NULL, &error);
 	if (!client) {
@@ -265,16 +268,28 @@ int main (int argc, char *argv[])
 	devices = nm_client_get_devices(client);
 
 	for (i = 0; i < devices->len; i++) {
-		device = g_ptr_array_index(devices, i);
-		if (NM_IS_DEVICE_WIFI(device))
-			g_signal_connect(device,
+		Device *d;
+
+		d = malloc(sizeof(Device));
+		if (i == 0)
+			d->is_current = 1;
+		else
+			d->is_current = 0;
+
+		d->device = g_ptr_array_index(devices, i);
+
+		initialize_device_pixmap(d);
+
+		if (NM_IS_DEVICE_WIFI(d->device)) {
+			g_signal_connect(d->device,
 					 "notify::" NM_DEVICE_WIFI_BITRATE,
-					 G_CALLBACK(update_window_wifi),
-					 device);
+					 G_CALLBACK(update_window_wifi), d);
+		}
 	}
 
-	device = g_ptr_array_index(devices, 0);
-	update_window(device);
+	mask = XCreateBitmapFromData(DADisplay, DAWindow, wmnm_mask_bits,
+				     wmnm_mask_width, wmnm_mask_height);
+	DASetShape(mask);
 
 	DASetTimeout(1000);
 	DAShow();
