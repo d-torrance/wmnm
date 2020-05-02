@@ -38,8 +38,7 @@
 #define DEFAULT_FGCOLOR "light sea green"
 #define DEFAULT_BGCOLOR "#181818"
 
-typedef struct {
-	int is_current;
+typedef struct Device {
 	NMDevice *device;
 	Pixmap pixmap;
 	struct Device *previous;
@@ -55,6 +54,7 @@ void switch_devices(int x, int y, DARect rect, void *data);
 DAActionRect action_rects[] = {
 	{{5, 5, 54, 11}, switch_devices}
 };
+Device *current_device;
 
 void clear_rectangle(Pixmap pixmap, int x, int y, unsigned int width,
 		     unsigned int height)
@@ -205,19 +205,12 @@ void initialize_device_pixmap(Device *d)
 	if (NM_IS_DEVICE_WIFI(d->device))
 		update_window_wifi(d);
 
-	if (d->is_current)
-		DASetPixmap(d->pixmap);
 }
 
 void switch_devices(int x, int y, DARect rect, void *data)
 {
-	/* devices = (Devices *)data;
-	 * 
-	 * devices->current_device++;
-	 * if (devices->current_device >= devices->len)
-	 * 	devices->current_device = 0;
-	 * 
-	 * DASetPixmap(devices->devices[devices->current_device]->pixmap); */
+	current_device = current_device->next;
+	DASetPixmap(current_device->pixmap);
 }
 
 void button_press(int button, int state, int x, int y)
@@ -226,7 +219,7 @@ void button_press(int button, int state, int x, int y)
 
 	*data = button;
 
-	/* DAProcessActionRects(x, y, action_rects, 1, (void *)data); */
+	DAProcessActionRects(x, y, action_rects, 1, (void *)data);
 
 	free(data);
 }
@@ -249,6 +242,7 @@ int main (int argc, char *argv[])
 	short unsigned int w, h;
 	Pixmap mask;
 	const GPtrArray *devices;
+	Device *first, *previous;
 
 	DAParseArguments(argc, argv, NULL, 0,
 			 "NetworkManager frontend as a Window Maker dockapp",
@@ -271,10 +265,20 @@ int main (int argc, char *argv[])
 		Device *d;
 
 		d = malloc(sizeof(Device));
-		if (i == 0)
-			d->is_current = 1;
-		else
-			d->is_current = 0;
+
+		if (i == 0) {
+			current_device = d;
+			first = d;
+		} else {
+			d->previous = previous;
+			previous->next = d;
+		}
+		previous = d;
+
+		if (i == devices->len - 1) {
+			d->next = first;
+			first->previous = d;
+		}
 
 		d->device = g_ptr_array_index(devices, i);
 
@@ -286,6 +290,8 @@ int main (int argc, char *argv[])
 					 G_CALLBACK(update_window_wifi), d);
 		}
 	}
+
+	DASetPixmap(current_device->pixmap);
 
 	mask = XCreateBitmapFromData(DADisplay, DAWindow, wmnm_mask_bits,
 				     wmnm_mask_width, wmnm_mask_height);
