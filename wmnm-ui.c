@@ -25,6 +25,7 @@
 
 #include "wmnm.h"
 #include "wmnm-ui.h"
+#include "wmnm-wifi.h"
 #include "wmnm_master.xpm"
 
 static char *led_on_xpm[] = {
@@ -57,7 +58,7 @@ static Pixmap master, frame, led_on, led_off;
 static GC bg_gc, fg_gc, dim_gc;
 static XftDraw *xft_draw;
 static XftFont *xft_font;
-static XftColor xft_fg;
+static XftColor xft_fg, xft_bg;
 
 static guint render_idle_id;
 
@@ -88,6 +89,7 @@ void wmnm_ui_init(void)
 	xft_font = XftFontOpenName(DADisplay, DefaultScreen(DADisplay),
 				   "mono:pixelsize=9");
 	XftColorAllocName(DADisplay, DAVisual, cmap, DEFAULT_FGCOLOR, &xft_fg);
+	XftColorAllocName(DADisplay, DAVisual, cmap, DEFAULT_BGCOLOR, &xft_bg);
 	xft_draw = XftDrawCreate(DADisplay, frame, DAVisual, cmap);
 }
 
@@ -97,10 +99,15 @@ static void clear_rectangle(int x, int y, unsigned int width,
 	XFillRectangle(DADisplay, frame, bg_gc, x, y, width, height);
 }
 
+static void draw_string_in(XftColor *color, const char *str, int x, int y)
+{
+	XftDrawString8(xft_draw, color, xft_font, x, y,
+		       (const FcChar8 *)str, strlen(str));
+}
+
 static void draw_string(const char *str, int x, int y)
 {
-	XftDrawString8(xft_draw, &xft_fg, xft_font, x, y,
-		       (const FcChar8 *)str, strlen(str));
+	draw_string_in(&xft_fg, str, x, y);
 }
 
 static void draw_signal(guint8 strength)
@@ -167,18 +174,121 @@ static void render_generic_body(NMDevice *device)
 	}
 }
 
-static void render_device_view(Device *d)
+/* Draw str clipped to a box, so a long SSID stops at the panel edge instead
+   of running over the border. */
+static void draw_string_clipped(XftColor *color, const char *str, int x, int y,
+				int clip_x, int clip_width)
+{
+	XRectangle clip;
+
+	clip.x = clip_x;
+	clip.y = 0;
+	clip.width = clip_width;
+	clip.height = DOCKAPP_HEIGHT;
+
+	XftDrawSetClipRectangles(xft_draw, 0, 0, &clip, 1);
+	draw_string_in(color, str, x, y);
+	XftDrawSetClip(xft_draw, NULL);
+}
+
+/* A padlock, three pixels wide: shackle on top, body beneath.  Enterprise
+   networks get a broken shackle so it is obvious up front that they will be
+   handed off to nm-connection-editor rather than prompting here. */
+static void draw_lock(int x, int y, gboolean enterprise, GC gc)
+{
+	if (enterprise)
+		XDrawPoint(DADisplay, frame, gc, x, y);
+	else
+		XDrawLine(DADisplay, frame, gc, x, y, x + 2, y);
+	XDrawPoint(DADisplay, frame, gc, x, y + 1);
+	XDrawPoint(DADisplay, frame, gc, x + 2, y + 1);
+	XFillRectangle(DADisplay, frame, gc, x, y + 2, 3, 3);
+}
+
+static void render_ap_list(Device *d)
+{
+	const GPtrArray *entries = wmnm_wifi_entries(d);
+	guint top = wmnm_wifi_scroll_top(d);
+	guint cursor = wmnm_wifi_cursor(d);
+	guint row;
+
+	if (!entries || entries->len == 0) {
+		draw_string("scanning", 8, 42);
+		return;
+	}
+
+	for (row = 0; row < WMNM_AP_ROWS; row++) {
+		guint index = top + row;
+		int y = BODY_Y + row * AP_ROW_HEIGHT;
+		int baseline = y + 8;
+		gboolean selected = (index == cursor);
+		XftColor *color = selected ? &xft_bg : &xft_fg;
+		GC gc = selected ? bg_gc : fg_gc;
+		ApEntry *entry;
+		int bar;
+
+		if (index >= entries->len)
+			break;
+
+		entry = g_ptr_array_index(entries, index);
+
+		/* The selected row is a filled bar with the text knocked out
+		   of it. */
+		if (selected)
+			XFillRectangle(DADisplay, frame, fg_gc, BODY_X, y,
+				       GUTTER_X - BODY_X, AP_ROW_HEIGHT);
+
+		if (wmnm_ap_is_secure(entry))
+			draw_lock(BODY_X + 1, y + 2,
+				  wmnm_ap_is_enterprise(entry), gc);
+
+		draw_string_clipped(color, entry->label, BODY_X + 5, baseline,
+				    BODY_X + 5, 41);
+
+		/* Strength as a short vertical tick rather than a bar graph;
+		   there is no room for anything wider. */
+		bar = (entry->strength * 7) / 100;
+		if (bar > 0)
+			XFillRectangle(DADisplay, frame, gc, 51,
+				       y + 8 - bar, 3, bar);
+	}
+
+	/* Scroll gutter: an arrow at each end and a thumb showing where the
+	   visible window sits in the list. */
+	XDrawLine(DADisplay, frame, dim_gc, GUTTER_X + 2, BODY_Y,
+		  GUTTER_X + 2, BODY_Y + BODY_HEIGHT - 1);
+	if (top > 0)
+		XFillRectangle(DADisplay, frame, fg_gc, GUTTER_X + 1,
+			       BODY_Y + 1, 3, 2);
+	if (entries->len > top + WMNM_AP_ROWS)
+		XFillRectangle(DADisplay, frame, fg_gc, GUTTER_X + 1,
+			       BODY_Y + BODY_HEIGHT - 3, 3, 2);
+	if (entries->len > WMNM_AP_ROWS) {
+		int track = BODY_HEIGHT - 12;
+		int thumb = BODY_Y + 6 + (track * top) / entries->len;
+
+		XFillRectangle(DADisplay, frame, fg_gc, GUTTER_X + 1, thumb, 3,
+			       MAX(2, (track * WMNM_AP_ROWS) / entries->len));
+	}
+}
+
+static void render_iface_strip(Device *d)
 {
 	const char *iface;
 
 	iface = nm_device_get_iface(d->device);
 	if (iface)
-		draw_string(iface, 6, 13);
+		draw_string_clipped(&xft_fg, iface, 6, 13, 6, 45);
 
 	XCopyArea(DADisplay,
 		  nm_device_get_state(d->device) == NM_DEVICE_STATE_ACTIVATED
 		  ? led_on : led_off,
 		  frame, DAGC, 0, 0, 4, 4, 53, 8);
+}
+
+static void render_device_view(Device *d)
+{
+	render_iface_strip(d);
 
 	if (NM_IS_DEVICE_WIFI(d->device))
 		render_wifi_body(d->device);
@@ -204,6 +314,10 @@ void wmnm_render(void)
 	switch (current_view) {
 	case VIEW_DEVICE:
 		render_device_view(current_device);
+		break;
+	case VIEW_APLIST:
+		render_iface_strip(current_device);
+		render_ap_list(current_device);
 		break;
 	}
 

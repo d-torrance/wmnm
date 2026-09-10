@@ -7,6 +7,8 @@ wmnm_SOURCES = \
 	wmnm-loop.h \
 	wmnm-ui.c \
 	wmnm-ui.h \
+	wmnm-wifi.c \
+	wmnm-wifi.h \
 	wmnm_mask.xbm \
 	wmnm_master.xpm
 

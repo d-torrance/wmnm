@@ -23,16 +23,39 @@
 #include "wmnm.h"
 #include "wmnm-loop.h"
 #include "wmnm-ui.h"
+#include "wmnm-wifi.h"
 #include "wmnm_mask.xbm"
 
-static void switch_devices(int x, int y, DARect rect, void *data);
-
-/* globals */
-DAActionRect action_rects[] = {
-	{{5, 5, 54, 11}, switch_devices}
-};
 Device *current_device;
 View current_view = VIEW_DEVICE;
+
+static void set_view(View view)
+{
+	if (view == current_view)
+		return;
+
+	if (current_view == VIEW_APLIST)
+		wmnm_wifi_leave(current_device);
+
+	current_view = view;
+
+	if (view == VIEW_APLIST)
+		wmnm_wifi_enter(current_device);
+
+	wmnm_queue_render();
+}
+
+/* The access point list only means anything for a wifi device. */
+static void show_ap_list(int x, int y, DARect rect, void *data)
+{
+	(void)x;
+	(void)y;
+	(void)rect;
+	(void)data;
+
+	if (current_device && current_device->wifi)
+		set_view(VIEW_APLIST);
+}
 
 static void switch_devices(int x, int y, DARect rect, void *data)
 {
@@ -41,17 +64,85 @@ static void switch_devices(int x, int y, DARect rect, void *data)
 	(void)rect;
 	(void)data;
 
+	set_view(VIEW_DEVICE);
 	current_device = current_device->next;
 	wmnm_queue_render();
 }
 
+static void scroll_up(int x, int y, DARect rect, void *data)
+{
+	(void)x;
+	(void)y;
+	(void)rect;
+	(void)data;
+
+	wmnm_wifi_scroll(current_device, -1);
+}
+
+static void scroll_down(int x, int y, DARect rect, void *data)
+{
+	(void)x;
+	(void)y;
+	(void)rect;
+	(void)data;
+
+	wmnm_wifi_scroll(current_device, 1);
+}
+
+static void select_row(int x, int y, DARect rect, void *data)
+{
+	(void)x;
+	(void)data;
+
+	wmnm_wifi_select_row(current_device,
+			     (y - BODY_Y) / AP_ROW_HEIGHT);
+}
+
+/* globals */
+static DAActionRect device_rects[] = {
+	{{5, 5, 54, 11}, switch_devices},
+	{{BODY_X, BODY_Y, BODY_WIDTH, BODY_HEIGHT}, show_ap_list}
+};
+
+static DAActionRect aplist_rects[] = {
+	{{5, 5, 54, 11}, switch_devices},
+	{{GUTTER_X, BODY_Y, GUTTER_WIDTH, GUTTER_ZONE_HEIGHT}, scroll_up},
+	{{GUTTER_X, BODY_Y + BODY_HEIGHT - GUTTER_ZONE_HEIGHT, GUTTER_WIDTH,
+	  GUTTER_ZONE_HEIGHT}, scroll_down},
+	{{BODY_X, BODY_Y, GUTTER_X - BODY_X, BODY_HEIGHT}, select_row}
+};
+
 static void button_press(int button, int state, int x, int y)
 {
-	(void)button;
 	(void)state;
 
-	DAProcessActionRects(x, y, action_rects, G_N_ELEMENTS(action_rects),
-			     NULL);
+	/* The X server synthesises buttons 4 and 5 from the scroll axes of a
+	   libinput touchpad, so two-finger scrolling arrives here too.  Only
+	   the press is handled: each notch also generates a release. */
+	switch (button) {
+	case Button4:
+		show_ap_list(x, y, DANoRect, NULL);
+		wmnm_wifi_scroll(current_device, -1);
+		return;
+	case Button5:
+		show_ap_list(x, y, DANoRect, NULL);
+		wmnm_wifi_scroll(current_device, 1);
+		return;
+	case Button3:
+		set_view(VIEW_DEVICE);
+		return;
+	case Button1:
+		break;
+	default:
+		return;		/* ignore 2 and the horizontal wheel, 6 and 7 */
+	}
+
+	if (current_view == VIEW_APLIST)
+		DAProcessActionRects(x, y, aplist_rects,
+				     G_N_ELEMENTS(aplist_rects), NULL);
+	else
+		DAProcessActionRects(x, y, device_rects,
+				     G_N_ELEMENTS(device_rects), NULL);
 }
 
 /* libdockapp calls this when our window is destroyed.  It gives us a hook to
@@ -94,6 +185,8 @@ static Device *build_device_ring(const GPtrArray *devices)
 		if (nm_device_get_state(d->device) == NM_DEVICE_STATE_ACTIVATED
 		    && !current_device)
 			current_device = d;
+
+		wmnm_wifi_attach(d);
 
 		if (NM_IS_DEVICE_WIFI(d->device))
 			g_signal_connect(d->device,

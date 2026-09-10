@@ -36,14 +36,26 @@
 #define BODY_WIDTH 54
 #define BODY_HEIGHT 39
 
+/* The access point list: four 10px rows, with the rightmost 5px of the body
+   reserved as a scroll gutter. */
+#define WMNM_AP_ROWS 4
+#define AP_ROW_HEIGHT 10
+#define GUTTER_X 55
+#define GUTTER_WIDTH 5
+#define GUTTER_ZONE_HEIGHT 8
+
+struct WifiView;
+
 typedef struct Device {
 	NMDevice *device;
+	struct WifiView *wifi;		/* access point list, wifi only */
 	struct Device *previous;
 	struct Device *next;
 } Device;
 
 typedef enum {
-	VIEW_DEVICE			/* interface name and link statistics */
+	VIEW_DEVICE,			/* interface name and link statistics */
+	VIEW_APLIST			/* scrollable list of nearby networks */
 } View;
 
 extern Device *current_device;
