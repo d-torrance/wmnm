@@ -13,3 +13,5 @@ depcomp
 install-sh
 missing
 wmnm
+wmnm-askpass
+*.tar.gz

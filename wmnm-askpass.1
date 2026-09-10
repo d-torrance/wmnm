@@ -1,0 +1,77 @@
+.TH WMNM-ASKPASS 1 "September 2025" "wmnm" "User Commands"
+.SH NAME
+wmnm-askpass \- ask for a password in a WINGs dialog
+.SH SYNOPSIS
+.B wmnm-askpass
+.RI [ prompt ]
+.SH DESCRIPTION
+.B wmnm-askpass
+displays a dialog with a masked text field, writes what was typed to standard
+output, and exits zero.  If the user cancels, nothing is written and the exit
+status is non-zero.
+.PP
+The dialog is built with WINGs, Window Maker's own widget set, so it matches
+the rest of a Window Maker desktop and needs no other toolkit.
+.PP
+This is the convention used by
+.BR ssh (1),
+.BR git (1)
+and
+.BR sudo (8),
+so although
+.B wmnm-askpass
+exists for
+.BR wmnm (1),
+it works as a general purpose askpass program.
+.SH EXAMPLES
+Use it for ssh keys:
+.PP
+.RS
+.nf
+SSH_ASKPASS=wmnm-askpass SSH_ASKPASS_REQUIRE=prefer ssh-add
+.fi
+.RE
+.PP
+For git over HTTPS:
+.PP
+.RS
+.nf
+git config --global core.askPass wmnm-askpass
+.fi
+.RE
+.PP
+For sudo:
+.PP
+.RS
+.nf
+SUDO_ASKPASS=/usr/bin/wmnm-askpass sudo -A command
+.fi
+.RE
+.PP
+To make it the system default on Debian and derivatives:
+.PP
+.RS
+.nf
+update-alternatives --install /usr/bin/ssh-askpass ssh-askpass \\
+    /usr/bin/wmnm-askpass 50
+.fi
+.RE
+.SH EXIT STATUS
+.TP
+.B 0
+A password was entered and written to standard output.
+.TP
+.B 1
+The user cancelled, or the display could not be opened.
+.SH NOTES
+.BR pinentry (1)
+is not interchangeable with this program.  It speaks the Assuan protocol on
+standard input and output rather than taking a prompt as an argument, so
+.B wmnm-askpass
+cannot be used as a pinentry and pinentry cannot be used as an askpass.
+.SH SEE ALSO
+.BR wmnm (1),
+.BR ssh-add (1),
+.BR sudo (8)
+.SH AUTHOR
+Doug Torrance <dtorrance@piedmont.edu>

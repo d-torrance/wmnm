@@ -1,0 +1,97 @@
+.TH WMNM 1 "September 2025" "wmnm" "User Commands"
+.SH NAME
+wmnm \- NetworkManager frontend as a Window Maker dockapp
+.SH SYNOPSIS
+.B wmnm
+.RI [ OPTIONS ]
+.SH DESCRIPTION
+.B wmnm
+is a 64x64 dockapp for controlling NetworkManager, intended for Window Maker
+users who want to connect to wireless networks without running nm-applet or a
+full desktop environment.
+.PP
+The face shows the interface name, an activation LED, and, for a wifi device,
+signal strength, link speed and the current network.  Clicking the interface
+name at the top cycles through the devices NetworkManager knows about.
+.SH USAGE
+.SS Browsing networks
+Scrolling over the body of the icon, or clicking it, opens the list of nearby
+networks, sorted by signal strength with the active network first.  Networks
+reachable through several access points appear once.
+.PP
+Scrolling works with the mouse wheel and with two-finger scrolling on a
+touchpad.  For pointing devices with no scroll axis, such as a touchscreen,
+there are also scroll zones at the top and bottom of the narrow gutter down the
+right of the list.
+.PP
+A padlock marks a network that needs a passphrase.  A padlock with a broken
+shackle marks an enterprise (802.1x) network.
+.PP
+The selected network's name scrolls back and forth when it is too long to fit.
+.SS Connecting
+Click a network to select it, then click it again to connect.  If
+NetworkManager already has a matching profile it is reused and no passphrase is
+asked for.
+.PP
+Otherwise
+.B wmnm
+prompts for the passphrase, hands it to NetworkManager, and NetworkManager
+remembers it.  If the passphrase is rejected, the prompt reappears saying so.
+.PP
+Enterprise networks need an identity, an EAP method and usually a certificate,
+which do not fit in a 64x64 icon, so
+.B wmnm
+opens
+.BR nm-connection-editor (1)
+instead, falling back to
+.BR nmtui (1).
+Once such a profile exists it activates from the list like any other.  WEP is
+not supported.
+.SS Captive portals
+When NetworkManager reports that traffic is being intercepted,
+.B wmnm
+opens the portal's login page in the default browser and shows a "!" beside the
+interface name.  This happens once per connection; the middle mouse button
+opens it again.
+.SH MOUSE BUTTONS
+.TP
+.B Button 1
+Cycle devices (on the interface name), select or connect (in the network list).
+.TP
+.B Button 2
+Reopen the captive portal login page.
+.TP
+.B Button 3
+Return to the device view.
+.TP
+.B Buttons 4 and 5
+Scroll the network list.
+.SH OPTIONS
+.TP
+.BR \-w ", " \-\-windowed
+Run in a normal window instead of as a dockapp.  Useful for testing outside
+Window Maker.
+.TP
+.BR \-h ", " \-\-help
+Show a usage message and exit.
+.TP
+.BR \-v ", " \-\-version
+Show the version and exit.
+.SH ENVIRONMENT
+.TP
+.B WMNM_ASKPASS
+Program to use for passphrase prompts, overriding the search described in
+.BR wmnm-askpass (1).
+.SH NOTES
+NetworkManager asks registered secret agents for passphrases in sequence and
+takes the first answer.  If nm-applet, gnome-shell or plasma-nm is also
+running, its dialog may appear instead of
+.BR wmnm-askpass (1).
+Run only one of them.
+.SH SEE ALSO
+.BR wmnm-askpass (1),
+.BR nmcli (1),
+.BR nm-connection-editor (1),
+.BR nmtui (1)
+.SH AUTHOR
+Doug Torrance <dtorrance@piedmont.edu>

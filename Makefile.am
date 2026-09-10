@@ -32,5 +32,11 @@ wmnm_askpass_CFLAGS = $(WINGS_CFLAGS)
 wmnm_askpass_LDADD = $(WINGS_LIBS)
 endif
 
-#dist_man_MANS = wmnm.1
-#EXTRA_DIST = ChangeLog.md README.md
+dist_man1_MANS = wmnm.1
+if BUILD_ASKPASS
+dist_man1_MANS += wmnm-askpass.1
+endif
+
+# Ship the helper's sources and manual page even when WINGs is missing here,
+# so the tarball can still build it elsewhere.
+EXTRA_DIST = README.md wmnm-askpass.c wmnm-askpass.1
