@@ -34,8 +34,10 @@ static void set_view(View view)
 	if (view == current_view)
 		return;
 
-	if (current_view == VIEW_APLIST)
+	if (current_view == VIEW_APLIST) {
 		wmnm_wifi_leave(current_device);
+		wmnm_ui_stop_animations();
+	}
 
 	current_view = view;
 

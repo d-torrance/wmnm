@@ -32,4 +32,7 @@ void wmnm_queue_render(void);
 /* Render immediately.  wmnm_queue_render() is nearly always what you want. */
 void wmnm_render(void);
 
+/* Stop the selected-row marquee, e.g. when leaving the access point view. */
+void wmnm_ui_stop_animations(void);
+
 #endif /* WMNM_UI_H */

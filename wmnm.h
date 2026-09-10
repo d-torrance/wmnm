@@ -43,6 +43,7 @@
 #define GUTTER_X 55
 #define GUTTER_WIDTH 5
 #define GUTTER_ZONE_HEIGHT 8
+#define AP_LABEL_WIDTH 41
 
 struct WifiView;
 

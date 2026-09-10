@@ -62,6 +62,18 @@ static XftColor xft_fg, xft_bg;
 
 static guint render_idle_id;
 
+/* Marquee state for the selected row.  Only about seven characters fit, which
+   is not enough to tell "KINETIC_7_9db161" from "KINETIC_LM_9db161", so the
+   selected row scrolls its label back and forth. */
+#define MARQUEE_INTERVAL_MSEC 300
+#define MARQUEE_PAUSE_TICKS 3
+
+static guint marquee_timer;
+static int marquee_offset;
+static int marquee_limit;
+static int marquee_pause;
+static int marquee_step = 1;
+
 static GC solid_gc(char *color)
 {
 	XGCValues values;
@@ -205,6 +217,84 @@ static void draw_lock(int x, int y, gboolean enterprise, GC gc)
 	XFillRectangle(DADisplay, frame, gc, x, y + 2, 3, 3);
 }
 
+static int text_width(const char *str)
+{
+	XGlyphInfo extents;
+
+	XftTextExtents8(DADisplay, xft_font, (const FcChar8 *)str,
+			strlen(str), &extents);
+
+	return extents.xOff;
+}
+
+static gboolean marquee_tick(gpointer user_data)
+{
+	(void)user_data;
+
+	if (marquee_pause > 0) {
+		marquee_pause--;
+		return G_SOURCE_CONTINUE;
+	}
+
+	marquee_offset += marquee_step;
+	if (marquee_offset >= marquee_limit) {
+		marquee_offset = marquee_limit;
+		marquee_step = -1;
+		marquee_pause = MARQUEE_PAUSE_TICKS;
+	} else if (marquee_offset <= 0) {
+		marquee_offset = 0;
+		marquee_step = 1;
+		marquee_pause = MARQUEE_PAUSE_TICKS;
+	}
+
+	wmnm_queue_render();
+
+	return G_SOURCE_CONTINUE;
+}
+
+static void marquee_stop(void)
+{
+	if (marquee_timer) {
+		g_source_remove(marquee_timer);
+		marquee_timer = 0;
+	}
+	marquee_offset = 0;
+	marquee_limit = 0;
+	marquee_step = 1;
+	marquee_pause = 0;
+}
+
+/* Returns how far left to shift the selected label, starting or stopping the
+   animation as the selection changes. */
+static int marquee_offset_for(const char *label, int available)
+{
+	int overflow = text_width(label) - available;
+
+	if (overflow <= 0) {
+		marquee_stop();
+		return 0;
+	}
+
+	if (overflow != marquee_limit) {
+		/* A different (or newly selected) label: start over. */
+		marquee_limit = overflow;
+		marquee_offset = 0;
+		marquee_step = 1;
+		marquee_pause = MARQUEE_PAUSE_TICKS;
+	}
+
+	if (!marquee_timer)
+		marquee_timer = g_timeout_add(MARQUEE_INTERVAL_MSEC,
+					      marquee_tick, NULL);
+
+	return marquee_offset;
+}
+
+void wmnm_ui_stop_animations(void)
+{
+	marquee_stop();
+}
+
 static void render_ap_list(Device *d)
 {
 	const GPtrArray *entries = wmnm_wifi_entries(d);
@@ -213,6 +303,7 @@ static void render_ap_list(Device *d)
 	guint row;
 
 	if (!entries || entries->len == 0) {
+		marquee_stop();
 		draw_string("scanning", 8, 42);
 		return;
 	}
@@ -242,8 +333,12 @@ static void render_ap_list(Device *d)
 			draw_lock(BODY_X + 1, y + 2,
 				  wmnm_ap_is_enterprise(entry), gc);
 
-		draw_string_clipped(color, entry->label, BODY_X + 5, baseline,
-				    BODY_X + 5, 41);
+		draw_string_clipped(color, entry->label,
+				    BODY_X + 5 - (selected ?
+						  marquee_offset_for(
+							  entry->label,
+							  AP_LABEL_WIDTH) : 0),
+				    baseline, BODY_X + 5, AP_LABEL_WIDTH);
 
 		/* Strength as a short vertical tick rather than a bar graph;
 		   there is no room for anything wider. */
