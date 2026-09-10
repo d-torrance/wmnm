@@ -29,6 +29,7 @@
 #include "wmnm_mask.xbm"
 
 static void drag_start(int x, int y, DARect rect, void *data);
+static void aplist_activity(void);
 static void show_ap_list(int x, int y, DARect rect, void *data);
 static void grab_keyboard(gboolean grab);
 
@@ -36,6 +37,39 @@ Device *current_device;
 View current_view = VIEW_DEVICE;
 
 static gboolean pointer_inside;
+
+/* The network list is a transient mode; left alone it should give the display
+   back to the signal strength view rather than sitting there indefinitely. */
+#define APLIST_IDLE_SECONDS 30
+
+static guint aplist_idle_timer;
+
+static gboolean aplist_idle(gpointer user_data)
+{
+	(void)user_data;
+
+	/* Do not pull the list out from under someone who is looking at it. */
+	if (pointer_inside)
+		return G_SOURCE_CONTINUE;
+
+	aplist_idle_timer = 0;
+	wmnm_set_view(VIEW_DEVICE);
+
+	return G_SOURCE_REMOVE;
+}
+
+/* Restart the countdown; called for anything the user does to the list. */
+static void aplist_activity(void)
+{
+	if (current_view != VIEW_APLIST)
+		return;
+
+	if (aplist_idle_timer)
+		g_source_remove(aplist_idle_timer);
+
+	aplist_idle_timer = g_timeout_add_seconds(APLIST_IDLE_SECONDS,
+						  aplist_idle, NULL);
+}
 
 void wmnm_set_view(View view)
 {
@@ -46,6 +80,10 @@ void wmnm_set_view(View view)
 		wmnm_wifi_leave(current_device);
 		wmnm_ui_stop_animations();
 		grab_keyboard(FALSE);
+		if (aplist_idle_timer) {
+			g_source_remove(aplist_idle_timer);
+			aplist_idle_timer = 0;
+		}
 	}
 
 	current_view = view;
@@ -54,6 +92,7 @@ void wmnm_set_view(View view)
 		wmnm_wifi_enter(current_device);
 		if (pointer_inside)
 			grab_keyboard(TRUE);
+		aplist_activity();
 	}
 
 	wmnm_queue_render();
@@ -148,6 +187,7 @@ static void grab_keyboard(gboolean grab)
 static void pointer_entered(void)
 {
 	pointer_inside = TRUE;
+	wmnm_ui_set_hover(TRUE);
 
 	if (current_view == VIEW_APLIST)
 		grab_keyboard(TRUE);
@@ -156,7 +196,9 @@ static void pointer_entered(void)
 static void pointer_left(void)
 {
 	pointer_inside = FALSE;
+	wmnm_ui_set_hover(FALSE);
 	grab_keyboard(FALSE);
+	aplist_activity();
 }
 
 /* Map a pointer position in the track to a scroll offset, putting the middle
@@ -201,13 +243,17 @@ static void motion(int x, int y)
 {
 	(void)x;
 
-	if (dragging)
+	if (dragging) {
+		aplist_activity();
 		drag_to(y);
+	}
 }
 
 static void key_press(KeySym keysym, unsigned int state)
 {
 	(void)state;
+
+	aplist_activity();
 
 	if (current_view != VIEW_APLIST) {
 		if (keysym == XK_Up || keysym == XK_Down)
@@ -284,6 +330,8 @@ static DAActionRect aplist_rects[] = {
 static void button_press(int button, int state, int x, int y)
 {
 	(void)state;
+
+	aplist_activity();
 
 	/* The X server synthesises buttons 4 and 5 from the scroll axes of a
 	   libinput touchpad, so two-finger scrolling arrives here too.  Only
