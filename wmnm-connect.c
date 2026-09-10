@@ -26,6 +26,7 @@
 
 static NMClient *nm_client;
 static gboolean portal_opened;
+static View status_next_view = VIEW_DEVICE;
 static char *status_line1, *status_line2;
 static guint status_timer;
 
@@ -38,20 +39,23 @@ static gboolean status_expired(gpointer user_data)
 	g_clear_pointer(&status_line2, g_free);
 
 	if (current_view == VIEW_STATUS)
-		current_view = VIEW_APLIST;
+		wmnm_set_view(status_next_view);
 	wmnm_queue_render();
 
 	return G_SOURCE_REMOVE;
 }
 
-static void set_status(const char *line1, const char *line2)
+/* next is where to go when the message times out: back to the list when the
+   user still has a choice to make, otherwise to the normal device view. */
+static void set_status_next(const char *line1, const char *line2, View next)
 {
 	g_free(status_line1);
 	g_free(status_line2);
 	status_line1 = g_strdup(line1);
 	status_line2 = g_strdup(line2);
+	status_next_view = next;
 
-	current_view = VIEW_STATUS;
+	wmnm_set_view(VIEW_STATUS);
 
 	if (status_timer)
 		g_source_remove(status_timer);
@@ -59,6 +63,11 @@ static void set_status(const char *line1, const char *line2)
 					     NULL);
 
 	wmnm_queue_render();
+}
+
+static void set_status(const char *line1, const char *line2)
+{
+	set_status_next(line1, line2, VIEW_DEVICE);
 }
 
 const char *wmnm_status_line1(void)
@@ -169,12 +178,12 @@ static void launch_editor(const ApEntry *entry)
 
 	if (g_spawn_async(NULL, argv_editor, NULL, G_SPAWN_SEARCH_PATH, NULL,
 			  NULL, NULL, NULL))
-		set_status("use editor", entry->label);
+		set_status_next("use editor", entry->label, VIEW_APLIST);
 	else if (g_spawn_async(NULL, argv_nmtui, NULL, G_SPAWN_SEARCH_PATH,
 			       NULL, NULL, NULL, NULL))
-		set_status("use nmtui", entry->label);
+		set_status_next("use nmtui", entry->label, VIEW_APLIST);
 	else
-		set_status("802.1x", "unsupported");
+		set_status_next("802.1x", "unsupported", VIEW_APLIST);
 }
 
 static NMRemoteConnection *find_connection(NMDevice *device, NMAccessPoint *ap)
@@ -208,7 +217,7 @@ static void on_activated(GObject *object, GAsyncResult *result,
 	active = nm_client_activate_connection_finish(NM_CLIENT(object), result,
 						      &error);
 	if (!active) {
-		set_status("failed", error->message);
+		set_status_next("failed", error->message, VIEW_APLIST);
 		g_clear_error(&error);
 	} else {
 		g_object_unref(active);
@@ -227,7 +236,7 @@ static void on_added_activated(GObject *object, GAsyncResult *result,
 	active = nm_client_add_and_activate_connection2_finish(
 		NM_CLIENT(object), result, NULL, &error);
 	if (!active) {
-		set_status("failed", error->message);
+		set_status_next("failed", error->message, VIEW_APLIST);
 		g_clear_error(&error);
 	} else {
 		g_object_unref(active);
@@ -290,9 +299,9 @@ static void on_state_changed(NMDevice *device, guint new_state, guint old_state,
 		break;
 	case NM_DEVICE_STATE_FAILED:
 		if (reason == NM_DEVICE_STATE_REASON_NO_SECRETS)
-			set_status("wrong", "password");
+			set_status_next("wrong", "password", VIEW_APLIST);
 		else
-			set_status("failed", NULL);
+			set_status_next("failed", NULL, VIEW_APLIST);
 		break;
 	case NM_DEVICE_STATE_NEED_AUTH:
 		set_status("authenticating", NULL);
@@ -330,7 +339,7 @@ void wmnm_connect_to(Device *d, ApEntry *entry)
 		return;
 	}
 	if (security == AP_SEC_WEP) {
-		set_status("WEP not", "supported");
+		set_status_next("WEP not", "supported", VIEW_APLIST);
 		return;
 	}
 

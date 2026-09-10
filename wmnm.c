@@ -37,7 +37,7 @@ View current_view = VIEW_DEVICE;
 
 static gboolean pointer_inside;
 
-static void set_view(View view)
+void wmnm_set_view(View view)
 {
 	if (view == current_view)
 		return;
@@ -68,7 +68,7 @@ static void show_ap_list(int x, int y, DARect rect, void *data)
 	(void)data;
 
 	if (current_device && current_device->wifi)
-		set_view(VIEW_APLIST);
+		wmnm_set_view(VIEW_APLIST);
 }
 
 static void switch_devices(int x, int y, DARect rect, void *data)
@@ -78,7 +78,7 @@ static void switch_devices(int x, int y, DARect rect, void *data)
 	(void)rect;
 	(void)data;
 
-	set_view(VIEW_DEVICE);
+	wmnm_set_view(VIEW_DEVICE);
 	current_device = current_device->next;
 	wmnm_queue_render();
 }
@@ -248,7 +248,7 @@ static void key_press(KeySym keysym, unsigned int state)
 				wmnm_wifi_selected(current_device));
 		break;
 	case XK_Escape:
-		set_view(VIEW_DEVICE);
+		wmnm_set_view(VIEW_DEVICE);
 		break;
 	default:
 		break;
@@ -302,7 +302,7 @@ static void button_press(int button, int state, int x, int y)
 			wmnm_portal_open();
 		return;
 	case Button3:
-		set_view(VIEW_DEVICE);
+		wmnm_set_view(VIEW_DEVICE);
 		return;
 	case Button1:
 		break;

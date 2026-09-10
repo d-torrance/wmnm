@@ -40,6 +40,10 @@ Otherwise
 prompts for the passphrase, hands it to NetworkManager, and NetworkManager
 remembers it.  If the passphrase is rejected, the prompt reappears saying so.
 .PP
+After a successful connection the display returns to the normal device view
+showing signal strength and link speed.  After a failure it returns to the
+network list, so that another network can be tried.
+.PP
 Enterprise networks need an identity, an EAP method and usually a certificate,
 which do not fit in a 64x64 icon, so
 .B wmnm

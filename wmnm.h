@@ -68,4 +68,8 @@ typedef enum {
 extern Device *current_device;
 extern View current_view;
 
+/* Change views.  Always go through this rather than assigning current_view:
+   it is what starts and stops scanning, the marquee and the keyboard grab. */
+void wmnm_set_view(View view);
+
 #endif /* WMNM_H */
