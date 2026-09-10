@@ -72,11 +72,34 @@ static void draw_string_clipped(XftColor *color, const char *str, int x, int y,
 #define MARQUEE_INTERVAL_MSEC 300
 #define MARQUEE_PAUSE_TICKS 3
 
-static guint marquee_timer;
-static int marquee_offset;
-static int marquee_limit;
-static int marquee_pause;
-static int marquee_step = 1;
+/* One of these per scrolling label: the selected row in the list, and the
+   network name on the device view, scroll independently. */
+typedef struct {
+	guint timer;
+	int offset;
+	int limit;
+	int pause;
+	int step;
+	char *label;			/* what is scrolling, to spot changes */
+} Marquee;
+
+/* One per field whose text we do not control, which is most of them: an
+   interface name, a network name, a device description and NetworkManager's
+   error strings can all be wider than 54 pixels. */
+enum {
+	MARQUEE_IFACE,
+	MARQUEE_SSID,
+	MARQUEE_AP,
+	MARQUEE_DESCRIPTION,
+	MARQUEE_STATUS1,
+	MARQUEE_STATUS2,
+	MARQUEE_COUNT
+};
+
+static Marquee marquees[MARQUEE_COUNT];
+
+static void draw_scrolling(int which, XftColor *color, const char *str, int x,
+			   int y, int width);
 
 static GC solid_gc(char *color)
 {
@@ -107,6 +130,8 @@ void wmnm_ui_init(void)
 	XftColorAllocName(DADisplay, DAVisual, cmap, DEFAULT_FGCOLOR, &xft_fg);
 	XftColorAllocName(DADisplay, DAVisual, cmap, DEFAULT_BGCOLOR, &xft_bg);
 	xft_draw = XftDrawCreate(DADisplay, frame, DAVisual, cmap);
+
+	wmnm_ui_stop_animations();	/* sets each marquee to a sane start */
 }
 
 static void clear_rectangle(int x, int y, unsigned int width,
@@ -185,7 +210,10 @@ static void render_wifi_body(NMDevice *device)
 						 g_bytes_get_size(ssid));
 	else
 		ssid_str = g_strdup("--");
-	draw_string_clipped(&xft_fg, ssid_str, 6, 56, BODY_X, BODY_WIDTH);
+	/* Neighbouring networks often share a long prefix, so the tail is the
+	   only thing that tells them apart.  Scroll it if it does not fit. */
+	draw_scrolling(MARQUEE_SSID, &xft_fg, ssid_str, 6, 56,
+		       SSID_LABEL_WIDTH);
 	g_free(ssid_str);
 
 	draw_signal(nm_access_point_get_strength(active_ap));
@@ -215,7 +243,8 @@ static void render_generic_body(NMDevice *device)
 
 	description = nm_device_get_type_description(device);
 	if (description)
-		draw_string(description, 6, 30);
+		draw_scrolling(MARQUEE_DESCRIPTION, &xft_fg, description, 6, 30,
+			       SSID_LABEL_WIDTH);
 
 	address = nm_device_get_hw_address(device);
 	if (address && strlen(address) >= 17) {
@@ -305,22 +334,22 @@ static int text_width(const char *str)
 
 static gboolean marquee_tick(gpointer user_data)
 {
-	(void)user_data;
+	Marquee *marquee = user_data;
 
-	if (marquee_pause > 0) {
-		marquee_pause--;
+	if (marquee->pause > 0) {
+		marquee->pause--;
 		return G_SOURCE_CONTINUE;
 	}
 
-	marquee_offset += marquee_step;
-	if (marquee_offset >= marquee_limit) {
-		marquee_offset = marquee_limit;
-		marquee_step = -1;
-		marquee_pause = MARQUEE_PAUSE_TICKS;
-	} else if (marquee_offset <= 0) {
-		marquee_offset = 0;
-		marquee_step = 1;
-		marquee_pause = MARQUEE_PAUSE_TICKS;
+	marquee->offset += marquee->step;
+	if (marquee->offset >= marquee->limit) {
+		marquee->offset = marquee->limit;
+		marquee->step = -1;
+		marquee->pause = MARQUEE_PAUSE_TICKS;
+	} else if (marquee->offset <= 0) {
+		marquee->offset = 0;
+		marquee->step = 1;
+		marquee->pause = MARQUEE_PAUSE_TICKS;
 	}
 
 	wmnm_queue_render();
@@ -328,47 +357,64 @@ static gboolean marquee_tick(gpointer user_data)
 	return G_SOURCE_CONTINUE;
 }
 
-static void marquee_stop(void)
+static void marquee_reset(Marquee *marquee)
 {
-	if (marquee_timer) {
-		g_source_remove(marquee_timer);
-		marquee_timer = 0;
+	if (marquee->timer) {
+		g_source_remove(marquee->timer);
+		marquee->timer = 0;
 	}
-	marquee_offset = 0;
-	marquee_limit = 0;
-	marquee_step = 1;
-	marquee_pause = 0;
+
+	g_clear_pointer(&marquee->label, g_free);
+	marquee->offset = 0;
+	marquee->limit = 0;
+	marquee->step = 1;
+	marquee->pause = 0;
 }
 
-/* Returns how far left to shift the selected label, starting or stopping the
-   animation as the selection changes. */
-static int marquee_offset_for(const char *label, int available)
+/* How far left to shift a label that does not fit, starting the animation on
+   demand and stopping it when there is nothing to scroll. */
+static int marquee_offset_for(Marquee *marquee, const char *label,
+			      int available)
 {
 	int overflow = text_width(label) - available;
 
 	if (overflow <= 0) {
-		marquee_stop();
+		marquee_reset(marquee);
 		return 0;
 	}
 
-	if (overflow != marquee_limit) {
-		/* A different (or newly selected) label: start over. */
-		marquee_limit = overflow;
-		marquee_offset = 0;
-		marquee_step = 1;
-		marquee_pause = MARQUEE_PAUSE_TICKS;
+	/* Compare the text rather than the overflow: two different networks
+	   can be the same number of pixels too wide. */
+	if (g_strcmp0(marquee->label, label) != 0) {
+		marquee_reset(marquee);
+		marquee->label = g_strdup(label);
+		marquee->pause = MARQUEE_PAUSE_TICKS;
 	}
 
-	if (!marquee_timer)
-		marquee_timer = g_timeout_add(MARQUEE_INTERVAL_MSEC,
-					      marquee_tick, NULL);
+	marquee->limit = overflow;
 
-	return marquee_offset;
+	if (!marquee->timer)
+		marquee->timer = g_timeout_add(MARQUEE_INTERVAL_MSEC,
+					       marquee_tick, marquee);
+
+	return marquee->offset;
 }
 
 void wmnm_ui_stop_animations(void)
 {
-	marquee_stop();
+	int i;
+
+	for (i = 0; i < MARQUEE_COUNT; i++)
+		marquee_reset(&marquees[i]);
+}
+
+/* Draw str in a field of the given width, scrolling it if it does not fit. */
+static void draw_scrolling(int which, XftColor *color, const char *str, int x,
+			   int y, int width)
+{
+	int offset = marquee_offset_for(&marquees[which], str, width);
+
+	draw_string_clipped(color, str, x - offset, y, x, width);
 }
 
 /* The buttons are always drawn, dimmed when they would do nothing, so that
@@ -402,7 +448,7 @@ static void render_ap_list(Device *d)
 	guint row;
 
 	if (!entries || entries->len == 0) {
-		marquee_stop();
+		marquee_reset(&marquees[MARQUEE_AP]);
 		draw_string("scanning", 8, 42);
 		return;
 	}
@@ -432,12 +478,14 @@ static void render_ap_list(Device *d)
 			draw_lock(BODY_X + 1, y + 2,
 				  wmnm_ap_is_enterprise(entry), gc);
 
-		draw_string_clipped(color, entry->label,
-				    BODY_X + 5 - (selected ?
-						  marquee_offset_for(
-							  entry->label,
-							  AP_LABEL_WIDTH) : 0),
-				    baseline, BODY_X + 5, AP_LABEL_WIDTH);
+		/* Only the selected row scrolls; four moving rows would be unreadable. */
+		if (selected)
+			draw_scrolling(MARQUEE_AP, color, entry->label,
+				       BODY_X + 5, baseline, AP_LABEL_WIDTH);
+		else
+			draw_string_clipped(color, entry->label, BODY_X + 5,
+					    baseline, BODY_X + 5,
+					    AP_LABEL_WIDTH);
 
 		/* Strength as a short vertical tick rather than a bar graph;
 		   there is no room for anything wider. */
@@ -455,12 +503,14 @@ static void render_status(void)
 	const char *line1 = wmnm_status_line1();
 	const char *line2 = wmnm_status_line2();
 
+	/* line2 is often a NetworkManager error string, which can be a whole
+	   sentence. */
 	if (line1)
-		draw_string_clipped(&xft_fg, line1, BODY_X + 1, 34,
-				    BODY_X, BODY_WIDTH);
+		draw_scrolling(MARQUEE_STATUS1, &xft_fg, line1, BODY_X + 1, 34,
+			       SSID_LABEL_WIDTH);
 	if (line2)
-		draw_string_clipped(&xft_fg, line2, BODY_X + 1, 46,
-				    BODY_X, BODY_WIDTH);
+		draw_scrolling(MARQUEE_STATUS2, &xft_fg, line2, BODY_X + 1, 46,
+			       SSID_LABEL_WIDTH);
 }
 
 static void render_iface_strip(Device *d)
@@ -469,7 +519,8 @@ static void render_iface_strip(Device *d)
 
 	iface = nm_device_get_iface(d->device);
 	if (iface)
-		draw_string_clipped(&xft_fg, iface, 6, 13, 6, 45);
+		draw_scrolling(MARQUEE_IFACE, &xft_fg, iface, 6, 13,
+			       STRIP_LABEL_WIDTH);
 
 	XCopyArea(DADisplay,
 		  nm_device_get_state(d->device) == NM_DEVICE_STATE_ACTIVATED
