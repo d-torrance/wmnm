@@ -1,3 +1,5 @@
+AM_CPPFLAGS = -DWMNM_ASKPASS_PATH='"$(bindir)/wmnm-askpass"'
+
 bin_PROGRAMS = wmnm
 
 wmnm_SOURCES = \
@@ -18,6 +20,13 @@ wmnm_CFLAGS = $(x11_CFLAGS) $(dockapp_CFLAGS) $(glib_CFLAGS) $(libnm_CFLAGS) \
 	$(xft_CFLAGS)
 wmnm_LDADD = $(x11_LIBS) $(dockapp_LIBS) $(glib_LIBS) $(libnm_LIBS) \
 	$(xft_LIBS) -lm
+
+if BUILD_ASKPASS
+bin_PROGRAMS += wmnm-askpass
+wmnm_askpass_SOURCES = wmnm-askpass.c
+wmnm_askpass_CFLAGS = $(WINGS_CFLAGS)
+wmnm_askpass_LDADD = $(WINGS_LIBS)
+endif
 
 #dist_man_MANS = wmnm.1
 #EXTRA_DIST = ChangeLog.md README.md
