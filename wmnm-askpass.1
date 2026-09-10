@@ -10,6 +10,12 @@ displays a dialog with a masked text field, writes what was typed to standard
 output, and exits zero.  If the user cancels, nothing is written and the exit
 status is non-zero.
 .PP
+The password is masked as it is typed.  Clicking
+.B Show
+reveals it; the button then reads
+.B Hide
+and clicking it again masks the password once more.
+.PP
 The dialog is built with WINGs, Window Maker's own widget set, so it matches
 the rest of a Window Maker desktop and needs no other toolkit.
 .PP
