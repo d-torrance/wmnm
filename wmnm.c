@@ -95,17 +95,30 @@ void draw_signal(Pixmap pixmap, const guint8 strength)
 
 void draw_string(Pixmap pixmap, const char *str, int x, int y)
 {
+	static XftColor color;
+	static XftDraw *draw = NULL;
+	static XftFont *font = NULL;
+	static Pixmap drawable = None;
 	Colormap cmap;
-	XftColor color = {0, 0};
-	XftDraw *draw;
-	XftFont *font;
 
 	cmap = DefaultColormap(DADisplay, DefaultScreen(DADisplay));
-	draw = XftDrawCreate(DADisplay, pixmap, DAVisual, cmap);
-	XftColorAllocName(DADisplay, DAVisual, cmap, DEFAULT_FGCOLOR,
-			  &color);
-	font = XftFontOpenName(DADisplay, DefaultScreen(DADisplay),
-			       "mono:pixelsize=9");
+
+	if (!font) {
+		font = XftFontOpenName(DADisplay, DefaultScreen(DADisplay),
+				       "mono:pixelsize=9");
+		XftColorAllocName(DADisplay, DAVisual, cmap, DEFAULT_FGCOLOR,
+				  &color);
+	}
+
+	/* An XftDraw is bound to a single drawable, so rebind ours when we
+	   are asked to draw onto a different device's pixmap. */
+	if (!draw) {
+		draw = XftDrawCreate(DADisplay, pixmap, DAVisual, cmap);
+		drawable = pixmap;
+	} else if (pixmap != drawable) {
+		XftDrawChange(draw, pixmap);
+		drawable = pixmap;
+	}
 
 	XftDrawString8(draw, &color, font, x, y, str, strlen(str));
 }
