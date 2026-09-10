@@ -162,6 +162,18 @@ void update_window_wifi(Device *d)
 	}
 }
 
+/* GObject "notify" handlers are (GObject *, GParamSpec *, gpointer), so
+   update_window_wifi() cannot be connected directly: it would receive the
+   NMDevice as its Device * argument.  Trampoline through the user_data. */
+static void update_window_wifi_notify(GObject *object, GParamSpec *pspec,
+				      gpointer user_data)
+{
+	(void)object;
+	(void)pspec;
+
+	update_window_wifi((Device *)user_data);
+}
+
 void update_window_generic(Device *d)
 {
 	guint32 speed;
@@ -327,7 +339,7 @@ int main (int argc, char *argv[])
 		if (NM_IS_DEVICE_WIFI(d->device)) {
 			g_signal_connect(d->device,
 					 "notify::" NM_DEVICE_WIFI_BITRATE,
-					 G_CALLBACK(update_window_wifi), d);
+					 G_CALLBACK(update_window_wifi_notify), d);
 		}
 	}
 
