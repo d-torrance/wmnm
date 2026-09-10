@@ -149,6 +149,7 @@ void update_window_wifi(Device *d)
 		else
 			active_ssid_str = g_strdup ("--");
 		draw_string(d->pixmap, active_ssid_str, 6, 56);
+		g_free(active_ssid_str);
 
 		strength = nm_access_point_get_strength(active_ap);
 		draw_signal(d->pixmap, strength);
