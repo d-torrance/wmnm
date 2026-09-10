@@ -29,9 +29,13 @@
 #include "wmnm_mask.xbm"
 
 static void drag_start(int x, int y, DARect rect, void *data);
+static void show_ap_list(int x, int y, DARect rect, void *data);
+static void grab_keyboard(gboolean grab);
 
 Device *current_device;
 View current_view = VIEW_DEVICE;
+
+static gboolean pointer_inside;
 
 static void set_view(View view)
 {
@@ -41,12 +45,16 @@ static void set_view(View view)
 	if (current_view == VIEW_APLIST) {
 		wmnm_wifi_leave(current_device);
 		wmnm_ui_stop_animations();
+		grab_keyboard(FALSE);
 	}
 
 	current_view = view;
 
-	if (view == VIEW_APLIST)
+	if (view == VIEW_APLIST) {
 		wmnm_wifi_enter(current_device);
+		if (pointer_inside)
+			grab_keyboard(TRUE);
+	}
 
 	wmnm_queue_render();
 }
@@ -115,6 +123,41 @@ static void select_row(int x, int y, DARect rect, void *data)
 }
 
 static gboolean dragging;
+static gboolean keyboard_grabbed;
+
+/* A dockapp is not a normal window and does not get the keyboard focus, so
+   arrow keys would never reach us.  Grab the keyboard while the pointer is
+   over the icon and the network list is open -- a mode the user entered
+   deliberately -- and release it the moment the pointer leaves. */
+static void grab_keyboard(gboolean grab)
+{
+	if (grab == keyboard_grabbed)
+		return;
+
+	if (grab) {
+		if (XGrabKeyboard(DADisplay, DAWindow, True, GrabModeAsync,
+				  GrabModeAsync, CurrentTime) != GrabSuccess)
+			return;
+	} else {
+		XUngrabKeyboard(DADisplay, CurrentTime);
+	}
+
+	keyboard_grabbed = grab;
+}
+
+static void pointer_entered(void)
+{
+	pointer_inside = TRUE;
+
+	if (current_view == VIEW_APLIST)
+		grab_keyboard(TRUE);
+}
+
+static void pointer_left(void)
+{
+	pointer_inside = FALSE;
+	grab_keyboard(FALSE);
+}
 
 /* Map a pointer position in the track to a scroll offset, putting the middle
    of the thumb under the pointer. */
@@ -160,6 +203,56 @@ static void motion(int x, int y)
 
 	if (dragging)
 		drag_to(y);
+}
+
+static void key_press(KeySym keysym, unsigned int state)
+{
+	(void)state;
+
+	if (current_view != VIEW_APLIST) {
+		if (keysym == XK_Up || keysym == XK_Down)
+			show_ap_list(0, 0, DANoRect, NULL);
+		else
+			return;
+	}
+
+	switch (keysym) {
+	case XK_Up:
+	case XK_KP_Up:
+		wmnm_wifi_scroll(current_device, -1);
+		break;
+	case XK_Down:
+	case XK_KP_Down:
+		wmnm_wifi_scroll(current_device, 1);
+		break;
+	case XK_Page_Up:
+	case XK_KP_Page_Up:
+		wmnm_wifi_scroll(current_device, -WMNM_AP_ROWS);
+		break;
+	case XK_Page_Down:
+	case XK_KP_Page_Down:
+		wmnm_wifi_scroll(current_device, WMNM_AP_ROWS);
+		break;
+	case XK_Home:
+	case XK_KP_Home:
+		wmnm_wifi_scroll(current_device, -G_MAXINT);
+		break;
+	case XK_End:
+	case XK_KP_End:
+		wmnm_wifi_scroll(current_device, G_MAXINT);
+		break;
+	case XK_Return:
+	case XK_KP_Enter:
+	case XK_space:
+		wmnm_connect_to(current_device,
+				wmnm_wifi_selected(current_device));
+		break;
+	case XK_Escape:
+		set_view(VIEW_DEVICE);
+		break;
+	default:
+		break;
+	}
 }
 
 static void button_release(int button, int state, int x, int y)
@@ -230,6 +323,7 @@ static void button_press(int button, int state, int x, int y)
    even select StructureNotifyMask. */
 static void destroy(void)
 {
+	grab_keyboard(FALSE);
 	wmnm_loop_quit();
 }
 
@@ -287,11 +381,12 @@ static Device *build_device_ring(const GPtrArray *devices)
 int main(int argc, char *argv[])
 {
 	DACallbacks eventCallbacks = {destroy, button_press,
-				      button_release, motion, NULL, NULL,
-				      NULL};
+				      button_release, motion, pointer_entered,
+				      pointer_left, NULL};
 	NMClient *client;
 	GError *error = NULL;
 	const GPtrArray *devices;
+	XWindowAttributes attributes;
 	Pixmap mask;
 
 	DAParseArguments(argc, argv, NULL, 0,
@@ -300,6 +395,13 @@ int main(int argc, char *argv[])
 	DAInitialize(NULL, PACKAGE_NAME, DOCKAPP_WIDTH, DOCKAPP_HEIGHT,
 		     argc, argv);
 	DASetCallbacks(&eventCallbacks);
+
+	/* libdockapp derives its event mask from the callback table, which has
+	   no entry for key presses, so add that to whatever it selected. */
+	XGetWindowAttributes(DADisplay, DAWindow, &attributes);
+	XSelectInput(DADisplay, DAWindow,
+		     attributes.your_event_mask | KeyPressMask);
+	wmnm_loop_set_key_handler(key_press);
 
 	client = nm_client_new(NULL, &error);
 	if (!client) {

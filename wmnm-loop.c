@@ -29,6 +29,7 @@ typedef struct {
 } XSource;
 
 static GMainLoop *main_loop;
+static WmnmKeyFunc key_handler;
 
 /* Xlib buffers events in a userspace queue, so there can be events waiting
    for us while the socket itself has nothing left to read.  Reporting that
@@ -64,6 +65,13 @@ static gboolean x_dispatch(GSource *source, GSourceFunc callback,
 
 	while (XPending(xs->dpy)) {
 		XNextEvent(xs->dpy, &event);
+
+		if (event.type == KeyPress && key_handler) {
+			key_handler(XLookupKeysym(&event.xkey, 0),
+				    event.xkey.state);
+			continue;
+		}
+
 		DAProcessEvent(&event);
 	}
 
@@ -83,6 +91,11 @@ static int x_io_error(Display *dpy)
 	wmnm_loop_quit();
 
 	return 0;
+}
+
+void wmnm_loop_set_key_handler(WmnmKeyFunc handler)
+{
+	key_handler = handler;
 }
 
 void wmnm_loop_attach_x_source(Display *dpy)

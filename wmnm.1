@@ -55,6 +55,30 @@ When NetworkManager reports that traffic is being intercepted,
 opens the portal's login page in the default browser and shows a "!" beside the
 interface name.  This happens once per connection; the middle mouse button
 opens it again.
+.SS Keyboard
+While the pointer is over the icon and the network list is open, the arrow keys
+move the selection,
+.B Page Up
+and
+.B Page Down
+move by a screenful,
+.B Home
+and
+.B End
+jump to the ends,
+.B Return
+or
+.B space
+connects, and
+.B Escape
+returns to the device view.
+.PP
+A dockapp never receives the keyboard focus, so
+.B wmnm
+grabs the keyboard in order to see these keys at all.  The grab is taken only
+while the network list is open and the pointer is inside the icon, and is
+dropped as soon as the pointer leaves, so it cannot interfere with typing
+elsewhere.
 .SH MOUSE BUTTONS
 .TP
 .B Button 1

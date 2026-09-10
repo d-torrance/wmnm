@@ -21,11 +21,17 @@
 #define WMNM_LOOP_H
 
 #include <X11/Xlib.h>
+#include <X11/keysym.h>
 #include <glib.h>
 
 /* Attach the X connection to the default GMainContext so that X events and
    GLib/D-Bus sources are serviced by a single poll(), then run that loop.
    libdockapp's own DAEventLoop() is never entered. */
+/* libdockapp's callback table has no entry for key presses, so KeyPress
+   events are picked out of the event stream here and handed to this. */
+typedef void (*WmnmKeyFunc)(KeySym keysym, unsigned int state);
+void wmnm_loop_set_key_handler(WmnmKeyFunc handler);
+
 void wmnm_loop_attach_x_source(Display *dpy);
 void wmnm_loop_run(void);
 void wmnm_loop_quit(void);

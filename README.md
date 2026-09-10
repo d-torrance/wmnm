@@ -50,6 +50,11 @@ See `wmnm(1)`.  Briefly:
 | Middle click | Reopen the captive portal page |
 | Right click | Back to the device view |
 
+With the network list open and the pointer over the icon, the arrow keys move
+the selection, `Return` connects and `Escape` goes back.  A dockapp gets no
+keyboard focus, so the keyboard is grabbed while the pointer is inside the
+icon, and released the moment it leaves.
+
 ## Secret agents
 
 NetworkManager only asks *registered secret agents* for passphrases, and it
