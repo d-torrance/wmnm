@@ -491,9 +491,14 @@ static void render_ap_list(Device *d)
 		entry = g_ptr_array_index(entries, index);
 
 		/* The selected row is a filled bar with the text knocked out
-		   of it. */
+		   of it.  The network we are actually on gets the dim fill
+		   instead: bright enough to pick out at a glance, dim enough
+		   that it is never mistaken for the cursor. */
 		if (selected)
 			XFillRectangle(DADisplay, frame, fg_gc, BODY_X, y,
+				       GUTTER_X - BODY_X, AP_ROW_HEIGHT);
+		else if (entry->active)
+			XFillRectangle(DADisplay, frame, dim_gc, BODY_X, y,
 				       GUTTER_X - BODY_X, AP_ROW_HEIGHT);
 
 		if (wmnm_ap_is_secure(entry))
