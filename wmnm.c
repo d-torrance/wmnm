@@ -24,12 +24,10 @@
 #define DOCKAPP_WIDTH 64
 #define DOCKAPP_HEIGHT 64
 
-#include <glib.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <NetworkManager.h>
 #include <X11/Xft/Xft.h>
 
 #include "wmnm_mask.xbm"
@@ -48,7 +46,7 @@ typedef struct Device {
 void clear_rectangle(Pixmap pixmap, int x, int y, unsigned int width,
 		     unsigned int height);
 void switch_devices(int x, int y, DARect rect, void *data);
-static void update_window_generic(Device *d);
+void update_window_generic(Device *d);
 
 /* globals */
 DAActionRect action_rects[] = {
@@ -123,7 +121,8 @@ void draw_string(Pixmap pixmap, const char *str, int x, int y)
 		drawable = pixmap;
 	}
 
-	XftDrawString8(draw, &color, font, x, y, str, strlen(str));
+	XftDrawString8(draw, &color, font, x, y, (const FcChar8 *)str,
+		       strlen(str));
 }
 
 void update_window_wifi(Device *d)
@@ -183,8 +182,6 @@ static void update_window_wifi_notify(GObject *object, GParamSpec *pspec,
 
 void update_window_generic(Device *d)
 {
-	guint32 speed;
-	char speed_str[50];
 	const char *description;
 	const char *address;
 	char *address1, *address2;
@@ -205,8 +202,6 @@ void update_window_generic(Device *d)
 void initialize_device_pixmap(Device *d)
 {
 	const char *iface;
-	XGCValues values;
-	GC gc;
 	static Pixmap led_on = 0, led_off = 0;
 	Pixmap led;
 	short unsigned int w, h;
@@ -268,6 +263,11 @@ void initialize_device_pixmap(Device *d)
 
 void switch_devices(int x, int y, DARect rect, void *data)
 {
+	(void)x;
+	(void)y;
+	(void)rect;
+	(void)data;
+
 	current_device = current_device->next;
 	DASetPixmap(current_device->pixmap);
 }
@@ -288,15 +288,13 @@ void main_loop(void)
 
 int main (int argc, char *argv[])
 {
-	XGCValues values;
 	DACallbacks eventCallbacks = {NULL, button_press,
 				      NULL, NULL, NULL, NULL,
 				      main_loop};
 
 	NMClient *client;
 	GError *error = NULL;
-	int i;
-	short unsigned int w, h;
+	guint i;
 	Pixmap mask;
 	const GPtrArray *devices;
 	Device *first = NULL, *previous = NULL;
@@ -356,7 +354,8 @@ int main (int argc, char *argv[])
 
 	DASetPixmap(current_device->pixmap);
 
-	mask = XCreateBitmapFromData(DADisplay, DAWindow, wmnm_mask_bits,
+	mask = XCreateBitmapFromData(DADisplay, DAWindow,
+				     (const char *)wmnm_mask_bits,
 				     wmnm_mask_width, wmnm_mask_height);
 	DASetShape(mask);
 
