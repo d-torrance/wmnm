@@ -1,7 +1,16 @@
 bin_PROGRAMS = wmnm
-#dist_man_MANS = wmcellauto.1
-#EXTRA_DIST = ChangeLog.md README.md
 
-AM_CFLAGS = $(x11_CFLAGS) $(dockapp_CFLAGS) $(glib_CFLAGS) $(libnm_CFLAGS) \
+wmnm_SOURCES = \
+	wmnm.c \
+	wmnm-loop.c \
+	wmnm-loop.h \
+	wmnm_mask.xbm \
+	wmnm_master.xpm
+
+wmnm_CFLAGS = $(x11_CFLAGS) $(dockapp_CFLAGS) $(glib_CFLAGS) $(libnm_CFLAGS) \
 	$(xft_CFLAGS)
-LIBS += $(x11_LIBS) $(dockapp_LIBS) $(glib_LIBS) $(libnm_LIBS) $(xft_LIBS)
+wmnm_LDADD = $(x11_LIBS) $(dockapp_LIBS) $(glib_LIBS) $(libnm_LIBS) \
+	$(xft_LIBS) -lm
+
+#dist_man_MANS = wmnm.1
+#EXTRA_DIST = ChangeLog.md README.md

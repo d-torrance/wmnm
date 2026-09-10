@@ -30,6 +30,7 @@
 #include <string.h>
 #include <X11/Xft/Xft.h>
 
+#include "wmnm-loop.h"
 #include "wmnm_mask.xbm"
 #include "wmnm_master.xpm"
 
@@ -46,6 +47,7 @@ typedef struct Device {
 void clear_rectangle(Pixmap pixmap, int x, int y, unsigned int width,
 		     unsigned int height);
 void switch_devices(int x, int y, DARect rect, void *data);
+void destroy(void);
 void update_window_generic(Device *d);
 
 /* globals */
@@ -281,16 +283,19 @@ void button_press(int button, int state, int x, int y)
 			     NULL);
 }
 
-void main_loop(void)
+/* libdockapp calls this when our window is destroyed.  It gives us a hook to
+   shut down cleanly; without a non-NULL destroy callback libdockapp does not
+   even select StructureNotifyMask. */
+void destroy(void)
 {
-	g_main_context_iteration(NULL, FALSE);
+	wmnm_loop_quit();
 }
 
 int main (int argc, char *argv[])
 {
-	DACallbacks eventCallbacks = {NULL, button_press,
+	DACallbacks eventCallbacks = {destroy, button_press,
 				      NULL, NULL, NULL, NULL,
-				      main_loop};
+				      NULL};
 
 	NMClient *client;
 	GError *error = NULL;
@@ -359,9 +364,14 @@ int main (int argc, char *argv[])
 				     wmnm_mask_width, wmnm_mask_height);
 	DASetShape(mask);
 
-	DASetTimeout(1000);
 	DAShow();
-	DAEventLoop();
+
+	/* DASetCallbacks() above is what calls XSelectInput(), so it is still
+	   required even though we no longer use libdockapp's event loop. */
+	wmnm_loop_attach_x_source(DADisplay);
+	wmnm_loop_run();
+
+	g_object_unref(client);
 
 	return EXIT_SUCCESS;
 }
