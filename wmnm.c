@@ -274,13 +274,11 @@ void switch_devices(int x, int y, DARect rect, void *data)
 
 void button_press(int button, int state, int x, int y)
 {
-	int *data = malloc(sizeof(int *));
+	(void)button;
+	(void)state;
 
-	*data = button;
-
-	DAProcessActionRects(x, y, action_rects, 1, (void *)data);
-
-	free(data);
+	DAProcessActionRects(x, y, action_rects, G_N_ELEMENTS(action_rects),
+			     NULL);
 }
 
 void main_loop(void)
