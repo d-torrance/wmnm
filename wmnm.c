@@ -168,10 +168,17 @@ void update_window_wifi(Device *d)
 static void update_window_wifi_notify(GObject *object, GParamSpec *pspec,
 				      gpointer user_data)
 {
+	Device *d = (Device *)user_data;
+
 	(void)object;
 	(void)pspec;
 
-	update_window_wifi((Device *)user_data);
+	update_window_wifi(d);
+
+	/* Drawing into the pixmap is not enough on its own: DASetPixmap() is
+	   what installs it as the window background and clears the window. */
+	if (d == current_device)
+		DASetPixmap(d->pixmap);
 }
 
 void update_window_generic(Device *d)
