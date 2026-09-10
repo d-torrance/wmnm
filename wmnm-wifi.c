@@ -34,6 +34,8 @@ struct WifiView {
 	gboolean visible;
 	guint scan_timer;
 	GCancellable *cancel;
+	NMAccessPoint *watched_ap;	/* the one whose strength we follow */
+	gulong strength_handler;
 };
 
 static void ap_entry_free(gpointer data)
@@ -180,10 +182,48 @@ clamp:
 	}
 }
 
+static void on_strength_changed(GObject *object, GParamSpec *pspec,
+				gpointer user_data)
+{
+	(void)object;
+	(void)pspec;
+	(void)user_data;
+
+	wmnm_queue_render();
+}
+
+/* Follow the signal strength of the access point we are associated with, so
+   the bars on the device view stay live.  Only this one access point is
+   watched: subscribing to every access point in range would mean a redraw
+   storm for readings that are not on screen. */
+static void watch_active_ap(struct WifiView *wifi)
+{
+	NMAccessPoint *active;
+
+	active = nm_device_wifi_get_active_access_point(wifi->device);
+	if (active == wifi->watched_ap)
+		return;
+
+	if (wifi->watched_ap) {
+		g_signal_handler_disconnect(wifi->watched_ap,
+					    wifi->strength_handler);
+		g_clear_object(&wifi->watched_ap);
+		wifi->strength_handler = 0;
+	}
+
+	if (active) {
+		wifi->watched_ap = g_object_ref(active);
+		wifi->strength_handler = g_signal_connect(
+			active, "notify::" NM_ACCESS_POINT_STRENGTH,
+			G_CALLBACK(on_strength_changed), wifi);
+	}
+}
+
 static void refresh(struct WifiView *wifi)
 {
 	rebuild_entries(wifi);
 	restore_cursor(wifi);
+	watch_active_ap(wifi);
 	wmnm_queue_render();
 }
 
@@ -265,6 +305,7 @@ void wmnm_wifi_attach(Device *d)
 
 	rebuild_entries(wifi);
 	restore_cursor(wifi);
+	watch_active_ap(wifi);
 }
 
 void wmnm_wifi_enter(Device *d)
