@@ -9,6 +9,8 @@ wmnm_SOURCES = \
 	wmnm-ui.h \
 	wmnm-wifi.c \
 	wmnm-wifi.h \
+	wmnm-connect.c \
+	wmnm-connect.h \
 	wmnm_mask.xbm \
 	wmnm_master.xpm
 

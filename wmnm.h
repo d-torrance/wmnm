@@ -56,7 +56,8 @@ typedef struct Device {
 
 typedef enum {
 	VIEW_DEVICE,			/* interface name and link statistics */
-	VIEW_APLIST			/* scrollable list of nearby networks */
+	VIEW_APLIST,			/* scrollable list of nearby networks */
+	VIEW_STATUS			/* transient result of a connection */
 } View;
 
 extern Device *current_device;

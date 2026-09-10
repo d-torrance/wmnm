@@ -24,6 +24,7 @@
 #include "wmnm-loop.h"
 #include "wmnm-ui.h"
 #include "wmnm-wifi.h"
+#include "wmnm-connect.h"
 #include "wmnm_mask.xbm"
 
 Device *current_device;
@@ -91,13 +92,23 @@ static void scroll_down(int x, int y, DARect rect, void *data)
 	wmnm_wifi_scroll(current_device, 1);
 }
 
+/* First click moves the selection, a second click on the same row connects.
+   There is no room for a separate connect button. */
 static void select_row(int x, int y, DARect rect, void *data)
 {
+	guint row = (y - BODY_Y) / AP_ROW_HEIGHT;
+	guint before;
+
 	(void)x;
+	(void)rect;
 	(void)data;
 
-	wmnm_wifi_select_row(current_device,
-			     (y - BODY_Y) / AP_ROW_HEIGHT);
+	before = wmnm_wifi_cursor(current_device);
+	wmnm_wifi_select_row(current_device, row);
+
+	if (wmnm_wifi_cursor(current_device) == before)
+		wmnm_connect_to(current_device,
+				wmnm_wifi_selected(current_device));
 }
 
 /* globals */
@@ -189,6 +200,7 @@ static Device *build_device_ring(const GPtrArray *devices)
 			current_device = d;
 
 		wmnm_wifi_attach(d);
+		wmnm_connect_watch_device(d->device);
 
 		if (NM_IS_DEVICE_WIFI(d->device))
 			g_signal_connect(d->device,
@@ -238,6 +250,7 @@ int main(int argc, char *argv[])
 	}
 
 	wmnm_ui_init();
+	wmnm_connect_init(client);
 	build_device_ring(devices);
 
 	mask = XCreateBitmapFromData(DADisplay, DAWindow,

@@ -26,6 +26,7 @@
 #include "wmnm.h"
 #include "wmnm-ui.h"
 #include "wmnm-wifi.h"
+#include "wmnm-connect.h"
 #include "wmnm_master.xpm"
 
 static char *led_on_xpm[] = {
@@ -367,6 +368,19 @@ static void render_ap_list(Device *d)
 	}
 }
 
+static void render_status(void)
+{
+	const char *line1 = wmnm_status_line1();
+	const char *line2 = wmnm_status_line2();
+
+	if (line1)
+		draw_string_clipped(&xft_fg, line1, BODY_X + 1, 34,
+				    BODY_X, BODY_WIDTH);
+	if (line2)
+		draw_string_clipped(&xft_fg, line2, BODY_X + 1, 46,
+				    BODY_X, BODY_WIDTH);
+}
+
 static void render_iface_strip(Device *d)
 {
 	const char *iface;
@@ -413,6 +427,10 @@ void wmnm_render(void)
 	case VIEW_APLIST:
 		render_iface_strip(current_device);
 		render_ap_list(current_device);
+		break;
+	case VIEW_STATUS:
+		render_iface_strip(current_device);
+		render_status();
 		break;
 	}
 
