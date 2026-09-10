@@ -59,11 +59,14 @@ Device *current_device;
 void clear_rectangle(Pixmap pixmap, int x, int y, unsigned int width,
 		     unsigned int height)
 {
+	static GC gc = 0;
 	XGCValues values;
-	GC gc;
 
-	values.foreground = DAGetColor(DEFAULT_BGCOLOR);
-	gc = XCreateGC(DADisplay, pixmap, GCForeground, &values);
+	if (!gc) {
+		values.foreground = DAGetColor(DEFAULT_BGCOLOR);
+		gc = XCreateGC(DADisplay, pixmap, GCForeground, &values);
+	}
+
 	XFillRectangle(DADisplay, pixmap, gc, x, y, width, height);
 }
 
