@@ -97,6 +97,7 @@ enum {
 };
 
 static Marquee marquees[MARQUEE_COUNT];
+static gboolean hovering;
 
 static void draw_scrolling(int which, XftColor *color, const char *str, int x,
 			   int y, int width);
@@ -376,8 +377,16 @@ static void marquee_reset(Marquee *marquee)
 static int marquee_offset_for(Marquee *marquee, const char *label,
 			      int available)
 {
-	int overflow = text_width(label) - available;
+	int overflow;
 
+	/* Only scroll while someone is looking.  Parked at offset zero the
+	   label reads from its start, which is the sensible resting state. */
+	if (!hovering) {
+		marquee_reset(marquee);
+		return 0;
+	}
+
+	overflow = text_width(label) - available;
 	if (overflow <= 0) {
 		marquee_reset(marquee);
 		return 0;
@@ -406,6 +415,19 @@ void wmnm_ui_stop_animations(void)
 
 	for (i = 0; i < MARQUEE_COUNT; i++)
 		marquee_reset(&marquees[i]);
+}
+
+void wmnm_ui_set_hover(gboolean is_hovering)
+{
+	if (is_hovering == hovering)
+		return;
+
+	hovering = is_hovering;
+
+	if (!hovering)
+		wmnm_ui_stop_animations();
+
+	wmnm_queue_render();
 }
 
 /* Draw str in a field of the given width, scrolling it if it does not fit. */

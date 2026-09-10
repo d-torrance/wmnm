@@ -29,7 +29,14 @@ direction.
 A padlock marks a network that needs a passphrase.  A padlock with a broken
 shackle marks an enterprise (802.1x) network.
 .PP
-The selected network's name scrolls back and forth when it is too long to fit.
+The list is a transient mode: left alone for half a minute it gives the display
+back to the device view.  The countdown is held off while the pointer is over
+the icon, so it will not disappear while it is being read.
+.PP
+Any label too wide for the panel -- a network name, an interface name, a
+NetworkManager error -- scrolls back and forth, but only while the pointer is
+over the icon.  With the pointer elsewhere labels rest at their beginning and
+nothing animates.
 .SS Connecting
 Click a network to select it, then click it again to connect.  If
 NetworkManager already has a matching profile it is reused and no passphrase is

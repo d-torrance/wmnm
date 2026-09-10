@@ -18,6 +18,8 @@ captive portal login pages.
   for pointing devices without a scroll axis.
 * Connect with two clicks.  Known networks reconnect without prompting.
 * Passphrase prompts through `wmnm-askpass`, a WINGs dialog.
+* Long names scroll while the pointer is over the icon, so networks that
+  share a prefix can be told apart.
 * Captive portals open automatically in the default browser.
 * 802.1x networks are handed to `nm-connection-editor`.
 

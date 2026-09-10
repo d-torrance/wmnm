@@ -32,8 +32,12 @@ void wmnm_queue_render(void);
 /* Render immediately.  wmnm_queue_render() is nearly always what you want. */
 void wmnm_render(void);
 
-/* Stop the selected-row marquee, e.g. when leaving the access point view. */
+/* Stop every scrolling label, e.g. when leaving the access point view. */
 void wmnm_ui_stop_animations(void);
+
+/* Labels only scroll while the pointer is over the icon: an animation nobody
+   is looking at is just battery. */
+void wmnm_ui_set_hover(gboolean hovering);
 
 /* Where the scrollbar thumb sits for a list of count entries scrolled to top.
    Shared so that hit testing and drawing cannot disagree. */
