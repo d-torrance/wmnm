@@ -110,8 +110,33 @@ Show the version and exit.
 .SH ENVIRONMENT
 .TP
 .B WMNM_ASKPASS
-Program to use for passphrase prompts, overriding the search described in
-.BR wmnm-askpass (1).
+Program to use for passphrase prompts, overriding the search below.
+.TP
+.B SSH_ASKPASS
+Used if it is set, executable and
+.B DISPLAY
+is set.  The display check matters because some distributions point this at a
+terminal helper, which a dockapp cannot show.
+.SH PROMPT SEARCH ORDER
+.B wmnm
+looks for a prompt program in this order:
+.BR $WMNM_ASKPASS ,
+.B $SSH_ASKPASS
+(only with a display),
+the installed
+.BR wmnm-askpass ,
+a
+.B wmnm-askpass
+sitting next to the running
+.B wmnm
+binary, one on
+.BR $PATH ,
+and finally a generic
+.BR ssh-askpass .
+.PP
+The search beside the running binary is what lets an uninstalled build work
+from its source directory.  If none of these is found, connecting to a network
+that needs a passphrase fails with a message on standard error.
 .SH NOTES
 NetworkManager asks registered secret agents for passphrases in sequence and
 takes the first answer.  If nm-applet, gnome-shell or plasma-nm is also

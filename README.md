@@ -30,6 +30,10 @@ captive portal login pages.
 
 Requires `libnm`, `libdockapp`, `glib`, `libxft` and `libx11`.
 
+Running from the build directory works without installing: `wmnm` looks for
+`wmnm-askpass` next to its own binary.  You can also point `$WMNM_ASKPASS` at
+any program that prints a password on stdout.
+
 `wmnm-askpass` additionally needs WINGs (`libwings-dev` on Debian and
 derivatives).  It is optional: `configure` warns and skips it if WINGs is
 missing, and `wmnm` then falls back to `$SSH_ASKPASS`.  Build without it

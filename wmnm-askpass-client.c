@@ -35,8 +35,35 @@ struct WmnmAskpass {
 /* Note that pinentry is deliberately not consulted here.  It speaks the Assuan
    protocol on stdin and stdout rather than the askpass convention, so running
    it this way would just hang waiting for commands. */
+
+/* wmnm-askpass is normally installed next to wmnm, so look beside whatever
+   binary is running.  That is what makes an uninstalled build in a source
+   directory work, and it survives a relocated install. */
+static char *sibling_askpass(void)
+{
+	char *exe, *dir, *path;
+
+	exe = g_file_read_link("/proc/self/exe", NULL);
+	if (!exe)
+		return NULL;
+
+	dir = g_path_get_dirname(exe);
+	path = g_build_filename(dir, "wmnm-askpass", NULL);
+	g_free(exe);
+	g_free(dir);
+
+	if (g_file_test(path, G_FILE_TEST_IS_EXECUTABLE))
+		return path;
+
+	g_free(path);
+
+	return NULL;
+}
+
 static char *find_askpass(void)
 {
+	/* Only generic helpers: our own is preferred over these, since it
+	   matches the desktop wmnm is built for. */
 	static const char *candidates[] = {
 		"/usr/lib/ssh/x11-ssh-askpass",
 		"/usr/lib/openssh/gnome-ssh-askpass",
@@ -45,6 +72,7 @@ static char *find_askpass(void)
 		NULL
 	};
 	const char *env;
+	char *path;
 	int i;
 
 	env = g_getenv("WMNM_ASKPASS");
@@ -59,16 +87,24 @@ static char *find_askpass(void)
 	    g_file_test(env, G_FILE_TEST_IS_EXECUTABLE))
 		return g_strdup(env);
 
-	for (i = 0; candidates[i]; i++)
-		if (g_file_test(candidates[i], G_FILE_TEST_IS_EXECUTABLE))
-			return g_strdup(candidates[i]);
-
 #ifdef WMNM_ASKPASS_PATH
 	if (g_file_test(WMNM_ASKPASS_PATH, G_FILE_TEST_IS_EXECUTABLE))
 		return g_strdup(WMNM_ASKPASS_PATH);
 #endif
 
-	return g_find_program_in_path("wmnm-askpass");
+	path = sibling_askpass();
+	if (path)
+		return path;
+
+	path = g_find_program_in_path("wmnm-askpass");
+	if (path)
+		return path;
+
+	for (i = 0; candidates[i]; i++)
+		if (g_file_test(candidates[i], G_FILE_TEST_IS_EXECUTABLE))
+			return g_strdup(candidates[i]);
+
+	return NULL;
 }
 
 static void askpass_free(WmnmAskpass *askpass)
@@ -142,7 +178,9 @@ WmnmAskpass *wmnm_askpass_run(const char *prompt, WmnmAskpassFunc callback,
 
 	helper = find_askpass();
 	if (!helper) {
-		g_message("wmnm: no askpass helper found");
+		g_message("wmnm: no askpass helper found; install wmnm-askpass, "
+			  "or set $WMNM_ASKPASS to a program that prints a "
+			  "password on stdout");
 		return NULL;
 	}
 
