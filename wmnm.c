@@ -301,7 +301,7 @@ int main (int argc, char *argv[])
 	short unsigned int w, h;
 	Pixmap mask;
 	const GPtrArray *devices;
-	Device *first, *previous;
+	Device *first = NULL, *previous = NULL;
 
 	DAParseArguments(argc, argv, NULL, 0,
 			 "NetworkManager frontend as a Window Maker dockapp",
@@ -319,6 +319,12 @@ int main (int argc, char *argv[])
 	}
 
 	devices = nm_client_get_devices(client);
+
+	if (!devices || devices->len == 0) {
+		g_message("Error: NetworkManager reports no devices.");
+		g_object_unref(client);
+		return EXIT_FAILURE;
+	}
 
 	for (i = 0; i < devices->len; i++) {
 		Device *d;
