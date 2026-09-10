@@ -2,8 +2,11 @@ bin_PROGRAMS = wmnm
 
 wmnm_SOURCES = \
 	wmnm.c \
+	wmnm.h \
 	wmnm-loop.c \
 	wmnm-loop.h \
+	wmnm-ui.c \
+	wmnm-ui.h \
 	wmnm_mask.xbm \
 	wmnm_master.xpm
 
