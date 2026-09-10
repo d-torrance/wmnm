@@ -142,13 +142,17 @@ static void button_press(int button, int state, int x, int y)
 		show_ap_list(x, y, DANoRect, NULL);
 		wmnm_wifi_scroll(current_device, 1);
 		return;
+	case Button2:
+		if (wmnm_portal_active())
+			wmnm_portal_open();
+		return;
 	case Button3:
 		set_view(VIEW_DEVICE);
 		return;
 	case Button1:
 		break;
 	default:
-		return;		/* ignore 2 and the horizontal wheel, 6 and 7 */
+		return;		/* ignore the horizontal wheel, 6 and 7 */
 	}
 
 	if (current_view == VIEW_APLIST)

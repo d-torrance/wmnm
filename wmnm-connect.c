@@ -25,6 +25,7 @@
 #define STATUS_SECONDS 5
 
 static NMClient *nm_client;
+static gboolean portal_opened;
 static char *status_line1, *status_line2;
 static guint status_timer;
 
@@ -70,9 +71,69 @@ const char *wmnm_status_line2(void)
 	return status_line2;
 }
 
+gboolean wmnm_portal_active(void)
+{
+	return nm_client &&
+		nm_client_get_connectivity(nm_client) == NM_CONNECTIVITY_PORTAL;
+}
+
+void wmnm_portal_open(void)
+{
+	const char *uri;
+	char *argv[3];
+
+	if (!nm_client)
+		return;
+
+	/* This is the URI NetworkManager itself probes.  When a portal is
+	   intercepting traffic, fetching it is what triggers the redirect to
+	   the login page. */
+	uri = nm_client_connectivity_check_get_uri(nm_client);
+	if (!uri) {
+		set_status("captive", "portal");
+		return;
+	}
+
+	argv[0] = (char *)"xdg-open";
+	argv[1] = (char *)uri;
+	argv[2] = NULL;
+
+	if (g_spawn_async(NULL, argv, NULL, G_SPAWN_SEARCH_PATH, NULL, NULL,
+			  NULL, NULL))
+		set_status("captive", "portal");
+	else
+		set_status("portal", "open failed");
+}
+
+/* Connectivity can flap, and opening a browser tab on every transition would
+   be intolerable, so this fires at most once per activation.  The badge stays
+   clickable for a second look. */
+static void on_connectivity(GObject *object, GParamSpec *pspec,
+			    gpointer user_data)
+{
+	(void)object;
+	(void)pspec;
+	(void)user_data;
+
+	if (wmnm_portal_active()) {
+		if (!portal_opened) {
+			portal_opened = TRUE;
+			wmnm_portal_open();
+		}
+	} else if (nm_client_get_connectivity(nm_client) ==
+		   NM_CONNECTIVITY_FULL) {
+		portal_opened = FALSE;
+	}
+
+	wmnm_queue_render();
+}
+
 void wmnm_connect_init(NMClient *client)
 {
 	nm_client = client;
+
+	g_signal_connect(client, "notify::" NM_CLIENT_CONNECTIVITY,
+			 G_CALLBACK(on_connectivity), NULL);
 }
 
 /* Order matters here: an access point can advertise several key management
@@ -223,6 +284,9 @@ static void on_state_changed(NMDevice *device, guint new_state, guint old_state,
 	switch (new_state) {
 	case NM_DEVICE_STATE_ACTIVATED:
 		set_status("connected", NULL);
+		break;
+	case NM_DEVICE_STATE_PREPARE:
+		portal_opened = FALSE;
 		break;
 	case NM_DEVICE_STATE_FAILED:
 		if (reason == NM_DEVICE_STATE_REASON_NO_SECRETS)

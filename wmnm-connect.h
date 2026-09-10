@@ -42,6 +42,13 @@ ApSecurity wmnm_ap_security(const ApEntry *entry);
    already has one that matches. */
 void wmnm_connect_to(Device *d, ApEntry *entry);
 
+/* TRUE while NetworkManager reports the connection is behind a captive
+   portal. */
+gboolean wmnm_portal_active(void);
+
+/* Open the captive portal in the default browser. */
+void wmnm_portal_open(void);
+
 /* Two short lines for VIEW_STATUS, or NULL when there is nothing to say. */
 const char *wmnm_status_line1(void);
 const char *wmnm_status_line2(void);

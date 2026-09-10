@@ -393,6 +393,11 @@ static void render_iface_strip(Device *d)
 		  nm_device_get_state(d->device) == NM_DEVICE_STATE_ACTIVATED
 		  ? led_on : led_off,
 		  frame, DAGC, 0, 0, 4, 4, 53, 8);
+
+	/* A portal means the link is up but traffic is being intercepted, so
+	   the activation LED alone would be misleading. */
+	if (wmnm_portal_active())
+		draw_string_clipped(&xft_fg, "!", 47, 13, 47, 5);
 }
 
 static void render_device_view(Device *d)
