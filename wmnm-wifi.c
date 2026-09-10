@@ -333,6 +333,38 @@ void wmnm_wifi_select_row(Device *d, guint row)
 	wmnm_wifi_scroll(d, (gint)(wifi->scroll_top + row) - (gint)wifi->cursor);
 }
 
+/* Dragging the scrollbar moves the view, not the selection, but the cursor
+   must stay on a visible row or the next rebuild would scroll us back. */
+void wmnm_wifi_set_scroll_top(Device *d, guint top)
+{
+	struct WifiView *wifi = d ? d->wifi : NULL;
+	guint max_top;
+
+	if (!wifi || wifi->entries->len <= WMNM_AP_ROWS)
+		return;
+
+	max_top = wifi->entries->len - WMNM_AP_ROWS;
+	if (top > max_top)
+		top = max_top;
+
+	if (top == wifi->scroll_top)
+		return;
+
+	wifi->scroll_top = top;
+
+	if (wifi->cursor < top)
+		wifi->cursor = top;
+	else if (wifi->cursor >= top + WMNM_AP_ROWS)
+		wifi->cursor = top + WMNM_AP_ROWS - 1;
+
+	g_clear_pointer(&wifi->cursor_ssid, g_bytes_unref);
+	wifi->cursor_ssid = g_bytes_ref(
+		((ApEntry *)g_ptr_array_index(wifi->entries,
+					      wifi->cursor))->ssid);
+
+	wmnm_queue_render();
+}
+
 const GPtrArray *wmnm_wifi_entries(Device *d)
 {
 	struct WifiView *wifi = d ? d->wifi : NULL;

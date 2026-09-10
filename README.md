@@ -14,7 +14,8 @@ captive portal login pages.
   current network for wifi, type and MAC address for everything else.
 * Scroll through nearby networks, sorted by signal strength, deduplicated
   across access points.  Mouse wheel and two-finger touchpad scrolling both
-  work, and there are click zones for pointing devices without a scroll axis.
+  work, and there is a scrollbar with clickable arrows and a draggable thumb
+  for pointing devices without a scroll axis.
 * Connect with two clicks.  Known networks reconnect without prompting.
 * Passphrase prompts through `wmnm-askpass`, a WINGs dialog.
 * Captive portals open automatically in the default browser.
@@ -42,6 +43,8 @@ See `wmnm(1)`.  Briefly:
 | --- | --- |
 | Click the interface name | Cycle devices |
 | Scroll, or click the body | Open the network list |
+| Click a gutter arrow | Step one network |
+| Drag the scrollbar thumb | Scroll the list |
 | Click a network | Select it |
 | Click it again | Connect |
 | Middle click | Reopen the captive portal page |

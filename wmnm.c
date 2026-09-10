@@ -28,6 +28,8 @@
 #include "wmnm-agent.h"
 #include "wmnm_mask.xbm"
 
+static void drag_start(int x, int y, DARect rect, void *data);
+
 Device *current_device;
 View current_view = VIEW_DEVICE;
 
@@ -112,6 +114,65 @@ static void select_row(int x, int y, DARect rect, void *data)
 				wmnm_wifi_selected(current_device));
 }
 
+static gboolean dragging;
+
+/* Map a pointer position in the track to a scroll offset, putting the middle
+   of the thumb under the pointer. */
+static void drag_to(int y)
+{
+	const GPtrArray *entries = wmnm_wifi_entries(current_device);
+	guint max_top, top;
+	int thumb_y, thumb_h, span, offset;
+
+	if (!entries || entries->len <= WMNM_AP_ROWS)
+		return;
+
+	max_top = entries->len - WMNM_AP_ROWS;
+	wmnm_ui_thumb_geometry(entries->len, 0, &thumb_y, &thumb_h);
+
+	span = TRACK_HEIGHT - thumb_h;
+	if (span <= 0)
+		return;
+
+	offset = y - TRACK_Y - thumb_h / 2;
+	if (offset < 0)
+		offset = 0;
+	if (offset > span)
+		offset = span;
+
+	top = (guint)((offset * (int)max_top + span / 2) / span);
+	wmnm_wifi_set_scroll_top(current_device, top);
+}
+
+static void drag_start(int x, int y, DARect rect, void *data)
+{
+	(void)x;
+	(void)rect;
+	(void)data;
+
+	dragging = TRUE;
+	drag_to(y);
+}
+
+static void motion(int x, int y)
+{
+	(void)x;
+
+	if (dragging)
+		drag_to(y);
+}
+
+static void button_release(int button, int state, int x, int y)
+{
+	(void)state;
+	(void)x;
+	(void)y;
+
+	/* Each wheel notch also sends a release; ignore those. */
+	if (button == Button1)
+		dragging = FALSE;
+}
+
 /* globals */
 static DAActionRect device_rects[] = {
 	{{5, 5, 54, 11}, switch_devices},
@@ -120,9 +181,10 @@ static DAActionRect device_rects[] = {
 
 static DAActionRect aplist_rects[] = {
 	{{5, 5, 54, 11}, switch_devices},
-	{{GUTTER_X, BODY_Y, GUTTER_WIDTH, GUTTER_ZONE_HEIGHT}, scroll_up},
-	{{GUTTER_X, BODY_Y + BODY_HEIGHT - GUTTER_ZONE_HEIGHT, GUTTER_WIDTH,
-	  GUTTER_ZONE_HEIGHT}, scroll_down},
+	{{GUTTER_X, BODY_Y, GUTTER_WIDTH, GUTTER_BUTTON_HEIGHT}, scroll_up},
+	{{GUTTER_X, BODY_Y + BODY_HEIGHT - GUTTER_BUTTON_HEIGHT, GUTTER_WIDTH,
+	  GUTTER_BUTTON_HEIGHT}, scroll_down},
+	{{GUTTER_X, TRACK_Y, GUTTER_WIDTH, TRACK_HEIGHT}, drag_start},
 	{{BODY_X, BODY_Y, GUTTER_X - BODY_X, BODY_HEIGHT}, select_row}
 };
 
@@ -225,7 +287,7 @@ static Device *build_device_ring(const GPtrArray *devices)
 int main(int argc, char *argv[])
 {
 	DACallbacks eventCallbacks = {destroy, button_press,
-				      NULL, NULL, NULL, NULL,
+				      button_release, motion, NULL, NULL,
 				      NULL};
 	NMClient *client;
 	GError *error = NULL;

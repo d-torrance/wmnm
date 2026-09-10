@@ -42,7 +42,12 @@
 #define AP_ROW_HEIGHT 10
 #define GUTTER_X 55
 #define GUTTER_WIDTH 5
-#define GUTTER_ZONE_HEIGHT 8
+
+/* The gutter is an up button, a track, and a down button. */
+#define GUTTER_BUTTON_HEIGHT 8
+#define TRACK_Y (BODY_Y + GUTTER_BUTTON_HEIGHT)
+#define TRACK_HEIGHT (BODY_HEIGHT - 2 * GUTTER_BUTTON_HEIGHT)
+#define THUMB_MIN_HEIGHT 4
 #define AP_LABEL_WIDTH 41
 
 struct WifiView;

@@ -46,6 +46,9 @@ void wmnm_wifi_leave(Device *d);
 void wmnm_wifi_scroll(Device *d, int delta);
 void wmnm_wifi_select_row(Device *d, guint row);
 
+/* Scroll the view directly, as when dragging the scrollbar. */
+void wmnm_wifi_set_scroll_top(Device *d, guint top);
+
 const GPtrArray *wmnm_wifi_entries(Device *d);
 guint wmnm_wifi_cursor(Device *d);
 guint wmnm_wifi_scroll_top(Device *d);

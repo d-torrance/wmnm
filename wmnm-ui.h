@@ -35,4 +35,8 @@ void wmnm_render(void);
 /* Stop the selected-row marquee, e.g. when leaving the access point view. */
 void wmnm_ui_stop_animations(void);
 
+/* Where the scrollbar thumb sits for a list of count entries scrolled to top.
+   Shared so that hit testing and drawing cannot disagree. */
+void wmnm_ui_thumb_geometry(guint count, guint top, int *y, int *height);
+
 #endif /* WMNM_UI_H */

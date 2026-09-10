@@ -218,6 +218,40 @@ static void draw_lock(int x, int y, gboolean enterprise, GC gc)
 	XFillRectangle(DADisplay, frame, gc, x, y + 2, 3, 3);
 }
 
+/* The thumb spans the whole track: at the top of the list it touches the top
+   of the track, and at the bottom it touches the bottom.  Deriving both ends
+   from the same expression is what keeps it from stopping short. */
+void wmnm_ui_thumb_geometry(guint count, guint top, int *y, int *height)
+{
+	guint max_top = count > WMNM_AP_ROWS ? count - WMNM_AP_ROWS : 0;
+	int thumb;
+
+	thumb = count ? (int)((TRACK_HEIGHT * WMNM_AP_ROWS) / count)
+		      : TRACK_HEIGHT;
+	if (thumb < THUMB_MIN_HEIGHT)
+		thumb = THUMB_MIN_HEIGHT;
+	if (thumb > TRACK_HEIGHT)
+		thumb = TRACK_HEIGHT;
+
+	*height = thumb;
+	*y = TRACK_Y;
+	if (max_top > 0)
+		*y += (int)(((TRACK_HEIGHT - thumb) * top) / max_top);
+}
+
+/* A 3px triangle, pointing up or down, so the scroll buttons read as buttons
+   rather than as two stray pixels. */
+static void draw_arrow(int x, int y, gboolean up, GC gc)
+{
+	if (up) {
+		XDrawPoint(DADisplay, frame, gc, x + 1, y);
+		XDrawLine(DADisplay, frame, gc, x, y + 1, x + 2, y + 1);
+	} else {
+		XDrawLine(DADisplay, frame, gc, x, y, x + 2, y);
+		XDrawPoint(DADisplay, frame, gc, x + 1, y + 1);
+	}
+}
+
 static int text_width(const char *str)
 {
 	XGlyphInfo extents;
@@ -296,6 +330,29 @@ void wmnm_ui_stop_animations(void)
 	marquee_stop();
 }
 
+/* The buttons are always drawn, dimmed when they would do nothing, so that
+   they stay findable.  Two lit pixels that vanish at the ends of the list are
+   not a discoverable control. */
+static void render_scrollbar(guint count, guint top)
+{
+	gboolean can_up = top > 0;
+	gboolean can_down = count > top + WMNM_AP_ROWS;
+	int thumb_y, thumb_h;
+
+	XFillRectangle(DADisplay, frame, dim_gc, GUTTER_X + 1, TRACK_Y, 3,
+		       TRACK_HEIGHT);
+
+	draw_arrow(GUTTER_X + 1, BODY_Y + 3, TRUE, can_up ? fg_gc : dim_gc);
+	draw_arrow(GUTTER_X + 1, BODY_Y + BODY_HEIGHT - 5, FALSE,
+		   can_down ? fg_gc : dim_gc);
+
+	if (count > WMNM_AP_ROWS) {
+		wmnm_ui_thumb_geometry(count, top, &thumb_y, &thumb_h);
+		XFillRectangle(DADisplay, frame, fg_gc, GUTTER_X + 1, thumb_y,
+			       3, thumb_h);
+	}
+}
+
 static void render_ap_list(Device *d)
 {
 	const GPtrArray *entries = wmnm_wifi_entries(d);
@@ -349,23 +406,7 @@ static void render_ap_list(Device *d)
 				       y + 8 - bar, 3, bar);
 	}
 
-	/* Scroll gutter: an arrow at each end and a thumb showing where the
-	   visible window sits in the list. */
-	XDrawLine(DADisplay, frame, dim_gc, GUTTER_X + 2, BODY_Y,
-		  GUTTER_X + 2, BODY_Y + BODY_HEIGHT - 1);
-	if (top > 0)
-		XFillRectangle(DADisplay, frame, fg_gc, GUTTER_X + 1,
-			       BODY_Y + 1, 3, 2);
-	if (entries->len > top + WMNM_AP_ROWS)
-		XFillRectangle(DADisplay, frame, fg_gc, GUTTER_X + 1,
-			       BODY_Y + BODY_HEIGHT - 3, 3, 2);
-	if (entries->len > WMNM_AP_ROWS) {
-		int track = BODY_HEIGHT - 12;
-		int thumb = BODY_Y + 6 + (track * top) / entries->len;
-
-		XFillRectangle(DADisplay, frame, fg_gc, GUTTER_X + 1, thumb, 3,
-			       MAX(2, (track * WMNM_AP_ROWS) / entries->len));
-	}
+	render_scrollbar(entries->len, top);
 }
 
 static void render_status(void)
