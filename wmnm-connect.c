@@ -70,6 +70,25 @@ static void set_status(const char *line1, const char *line2)
 	set_status_next(line1, line2, VIEW_DEVICE);
 }
 
+/* A message with no expiry, for while an attempt is still in progress.  A
+   timed message would run out while the user is still typing a passphrase and
+   drop the display back to a half-connected device view. */
+static void set_status_pending(const char *line1, const char *line2)
+{
+	g_free(status_line1);
+	g_free(status_line2);
+	status_line1 = g_strdup(line1);
+	status_line2 = g_strdup(line2);
+
+	if (status_timer) {
+		g_source_remove(status_timer);
+		status_timer = 0;
+	}
+
+	wmnm_set_view(VIEW_STATUS);
+	wmnm_queue_render();
+}
+
 const char *wmnm_status_line1(void)
 {
 	return status_line1;
@@ -291,11 +310,23 @@ static void on_state_changed(NMDevice *device, guint new_state, guint old_state,
 	(void)user_data;
 
 	switch (new_state) {
-	case NM_DEVICE_STATE_ACTIVATED:
-		set_status("connected", NULL);
-		break;
 	case NM_DEVICE_STATE_PREPARE:
 		portal_opened = FALSE;
+		set_status_pending("connecting", NULL);
+		break;
+	case NM_DEVICE_STATE_CONFIG:
+	case NM_DEVICE_STATE_SECONDARIES:
+		set_status_pending("connecting", NULL);
+		break;
+	case NM_DEVICE_STATE_NEED_AUTH:
+		set_status_pending("password", "needed");
+		break;
+	case NM_DEVICE_STATE_IP_CONFIG:
+	case NM_DEVICE_STATE_IP_CHECK:
+		set_status_pending("getting", "address");
+		break;
+	case NM_DEVICE_STATE_ACTIVATED:
+		set_status("connected", NULL);
 		break;
 	case NM_DEVICE_STATE_FAILED:
 		if (reason == NM_DEVICE_STATE_REASON_NO_SECRETS)
@@ -303,8 +334,11 @@ static void on_state_changed(NMDevice *device, guint new_state, guint old_state,
 		else
 			set_status_next("failed", NULL, VIEW_APLIST);
 		break;
-	case NM_DEVICE_STATE_NEED_AUTH:
-		set_status("authenticating", NULL);
+	case NM_DEVICE_STATE_DISCONNECTED:
+		/* Only interesting if we were reporting on an attempt; this
+		   also fires routinely. */
+		if (current_view == VIEW_STATUS)
+			set_status_next("not", "connected", VIEW_APLIST);
 		break;
 	default:
 		/* Redraw anyway: the activation LED tracks device state. */
@@ -349,14 +383,14 @@ void wmnm_connect_to(Device *d, ApEntry *entry)
 	   actually picked. */
 	existing = find_connection(d->device, entry->best);
 	if (existing) {
-		set_status("connecting", entry->label);
+		set_status_pending("connecting", entry->label);
 		nm_client_activate_connection_async(
 			nm_client, NM_CONNECTION(existing), d->device, ap_path,
 			NULL, on_activated, g_strdup(entry->label));
 	} else {
 		NMConnection *partial = build_connection(entry, security);
 
-		set_status("connecting", entry->label);
+		set_status_pending("connecting", entry->label);
 		nm_client_add_and_activate_connection2(
 			nm_client, partial, d->device, ap_path, NULL, NULL,
 			on_added_activated, g_strdup(entry->label));

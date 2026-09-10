@@ -63,6 +63,9 @@ static XftColor xft_fg, xft_bg;
 
 static guint render_idle_id;
 
+static void draw_string_clipped(XftColor *color, const char *str, int x, int y,
+				int clip_x, int clip_width);
+
 /* Marquee state for the selected row.  Only about seven characters fit, which
    is not enough to tell "KINETIC_7_9db161" from "KINETIC_LM_9db161", so the
    selected row scrolls its label back and forth. */
@@ -137,8 +140,28 @@ static void draw_signal(guint8 strength)
 	}
 }
 
+/* Short enough to fit the panel: about nine characters. */
+static const char *device_state_label(NMDeviceState state)
+{
+	switch (state) {
+	case NM_DEVICE_STATE_UNMANAGED:	   return "unmanaged";
+	case NM_DEVICE_STATE_UNAVAILABLE:  return "no radio";
+	case NM_DEVICE_STATE_DISCONNECTED: return "offline";
+	case NM_DEVICE_STATE_PREPARE:
+	case NM_DEVICE_STATE_CONFIG:
+	case NM_DEVICE_STATE_SECONDARIES:  return "connecting";
+	case NM_DEVICE_STATE_NEED_AUTH:	   return "password";
+	case NM_DEVICE_STATE_IP_CONFIG:
+	case NM_DEVICE_STATE_IP_CHECK:	   return "getting IP";
+	case NM_DEVICE_STATE_DEACTIVATING: return "stopping";
+	case NM_DEVICE_STATE_FAILED:	   return "failed";
+	default:			   return NULL;
+	}
+}
+
 static void render_wifi_body(NMDevice *device)
 {
+	NMDeviceState state = nm_device_get_state(device);
 	NMAccessPoint *active_ap;
 	GBytes *ssid;
 	char *ssid_str;
@@ -147,8 +170,14 @@ static void render_wifi_body(NMDevice *device)
 
 	active_ap = nm_device_wifi_get_active_access_point(
 		NM_DEVICE_WIFI(device));
-	if (!active_ap)
+	if (!active_ap) {
+		const char *label = device_state_label(state);
+
+		if (label)
+			draw_string_clipped(&xft_fg, label, 6, 42, BODY_X,
+					    BODY_WIDTH);
 		return;
+	}
 
 	ssid = nm_access_point_get_ssid(active_ap);
 	if (ssid)
@@ -156,15 +185,27 @@ static void render_wifi_body(NMDevice *device)
 						 g_bytes_get_size(ssid));
 	else
 		ssid_str = g_strdup("--");
-	draw_string(ssid_str, 6, 56);
+	draw_string_clipped(&xft_fg, ssid_str, 6, 56, BODY_X, BODY_WIDTH);
 	g_free(ssid_str);
 
 	draw_signal(nm_access_point_get_strength(active_ap));
 
-	speed = nm_device_wifi_get_bitrate(NM_DEVICE_WIFI(device));
-	speed = (speed + 500) / 1000;
-	snprintf(speed_str, sizeof(speed_str), "%d Mbps", speed);
-	draw_string(speed_str, 6, 42);
+	/* NetworkManager publishes the access point as soon as it starts
+	   associating, long before there is a link.  Reporting the bitrate
+	   then just prints "0 Mbps", which reads as a connection that is up
+	   and idle rather than one still being made. */
+	if (state == NM_DEVICE_STATE_ACTIVATED) {
+		speed = nm_device_wifi_get_bitrate(NM_DEVICE_WIFI(device));
+		speed = (speed + 500) / 1000;
+		snprintf(speed_str, sizeof(speed_str), "%d Mbps", speed);
+		draw_string(speed_str, 6, 42);
+	} else {
+		const char *label = device_state_label(state);
+
+		if (label)
+			draw_string_clipped(&xft_fg, label, 6, 42, BODY_X,
+					    BODY_WIDTH);
+	}
 }
 
 static void render_generic_body(NMDevice *device)

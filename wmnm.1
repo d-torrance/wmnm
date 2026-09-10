@@ -40,6 +40,13 @@ Otherwise
 prompts for the passphrase, hands it to NetworkManager, and NetworkManager
 remembers it.  If the passphrase is rejected, the prompt reappears saying so.
 .PP
+While a connection is being made the body shows what NetworkManager is doing --
+.BR connecting ,
+.B password
+while a passphrase is being asked for, and
+.B getting IP
+-- rather than a link speed, which does not exist yet.
+.PP
 After a successful connection the display returns to the normal device view
 showing signal strength and link speed.  After a failure it returns to the
 network list, so that another network can be tried.
