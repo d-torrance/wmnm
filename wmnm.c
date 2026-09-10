@@ -25,6 +25,7 @@
 #include "wmnm-ui.h"
 #include "wmnm-wifi.h"
 #include "wmnm-connect.h"
+#include "wmnm-agent.h"
 #include "wmnm_mask.xbm"
 
 Device *current_device;
@@ -251,6 +252,7 @@ int main(int argc, char *argv[])
 
 	wmnm_ui_init();
 	wmnm_connect_init(client);
+	wmnm_agent_start();
 	build_device_ring(devices);
 
 	mask = XCreateBitmapFromData(DADisplay, DAWindow,
@@ -266,6 +268,7 @@ int main(int argc, char *argv[])
 	wmnm_loop_attach_x_source(DADisplay);
 	wmnm_loop_run();
 
+	wmnm_agent_stop();
 	g_object_unref(client);
 
 	return EXIT_SUCCESS;

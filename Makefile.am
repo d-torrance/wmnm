@@ -13,6 +13,10 @@ wmnm_SOURCES = \
 	wmnm-wifi.h \
 	wmnm-connect.c \
 	wmnm-connect.h \
+	wmnm-agent.c \
+	wmnm-agent.h \
+	wmnm-askpass-client.c \
+	wmnm-askpass-client.h \
 	wmnm_mask.xbm \
 	wmnm_master.xpm
 
